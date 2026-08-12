@@ -15,9 +15,14 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   web:
-    build: .
+    image: ghcr.io/gourav-tailor/autoace_ai:latest
     container_name: autoace_django
     restart: always
     command: >
@@ -33,8 +38,10 @@ services:
     env_file:
       - .env
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
 volumes:
   postgres_data:
   media_data:
+  static_data:
