@@ -184,10 +184,15 @@ def _analyze_acoustic_quality(y: np.ndarray, sr: int) -> dict:
         gap_bounds.append((prev_end, len(y)))
 
     if gap_bounds:
-        gap_rms_values = [
-            float(np.sqrt(np.mean(y[s:e] ** 2))) for s, e in gap_bounds if e > s
-        ]
-        gap_rms = float(np.mean(gap_rms_values)) if gap_rms_values else 0.0
+        # Concatenate all gap-region samples and compute RMS across them
+        # directly, rather than averaging each gap's RMS with equal weight.
+        # A handful of very brief gaps (0.01-0.1s, often a mis-split
+        # consonant/plosive burst rather than real silence) were previously
+        # counted exactly as heavily as multi-second genuinely-silent
+        # stretches, dragging the average up. Weighting by actual sample
+        # count fixes that without touching any threshold.
+        gap_samples = np.concatenate([y[s:e] for s, e in gap_bounds if e > s])
+        gap_rms = float(np.sqrt(np.mean(gap_samples ** 2))) if len(gap_samples) > 0 else 0.0
     else:
         # No detected gaps at all (continuous speech) -- fall back to the
         # quietest 10th percentile as the best available noise-floor proxy.

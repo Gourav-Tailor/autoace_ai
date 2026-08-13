@@ -13,6 +13,22 @@
     </a>
 </div>
 
+{% if batch.status == 'pending' or batch.status == 'processing' %}
+<div class="alert alert-info d-flex align-items-center mb-4" role="alert">
+    <div class="spinner-border spinner-border-sm me-3" role="status"></div>
+    <div>
+        <strong>Processing Batch in Background...</strong>
+        Progress: {{ batch.processed_files }} of {{ batch.total_files }} files analyzed.
+    </div>
+</div>
+<script>
+    // Auto-refresh page every 3 seconds until status changes to 'completed'
+    setTimeout(function() {
+        window.location.reload();
+    }, 3000);
+</script>
+{% endif %}
+
 {% if batch.error_message %}
 <div class="alert alert-danger mb-4">
     <strong>Batch Processing Error:</strong> {{ batch.error_message }}
