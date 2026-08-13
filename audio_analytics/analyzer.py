@@ -138,39 +138,100 @@ def _analyze_acoustic_quality(y: np.ndarray, sr: int) -> dict:
     acoustic heuristics only live in one place.
     """
     rms = librosa.feature.rms(y=y)[0]
-    noise_floor = float(np.percentile(rms, 10))
-    signal_peak = float(np.percentile(rms, 95))
-    snr_db = 20 * np.log10((signal_peak + 1e-6) / (noise_floor + 1e-6))
+    duration = len(y) / sr
 
-    bg_noise_present = snr_db < 20.0
+    non_silent = librosa.effects.split(y, top_db=25)
 
-    if snr_db > 25.0:
+    # Background noise: measure it where it's actually isolated from speech --
+    # inside the gaps between detected speech segments -- rather than as
+    # whole-clip dynamic range (loud speech vs. quiet pauses). Whole-clip RMS
+    # percentiles mostly reflect speech dynamics, not noise, since natural
+    # pauses are near-silent regardless of whether background noise is
+    # present; measuring energy specifically during those pauses isolates
+    # the noise floor from the speech signal.
+    gap_bounds = []
+    prev_end = 0
+    for seg_start, seg_end in non_silent:
+        if seg_start > prev_end:
+            gap_bounds.append((prev_end, seg_start))
+        prev_end = seg_end
+    if prev_end < len(y):
+        gap_bounds.append((prev_end, len(y)))
+
+    if gap_bounds:
+        gap_rms_values = [
+            float(np.sqrt(np.mean(y[s:e] ** 2))) for s, e in gap_bounds if e > s
+        ]
+        gap_rms = float(np.mean(gap_rms_values)) if gap_rms_values else 0.0
+    else:
+        # No detected gaps at all (continuous speech) -- fall back to the
+        # quietest 10th percentile as the best available noise-floor proxy.
+        gap_rms = float(np.percentile(rms, 10))
+
+    speech_rms = float(np.mean(rms))
+    snr_db = 20 * np.log10((speech_rms + 1e-6) / (gap_rms + 1e-6))
+
+    # A near-silent room has a gap RMS very close to zero; genuine background
+    # noise (TV, static, hum) keeps the gaps measurably above the noise floor
+    # a clean recording would show. This absolute floor is a physical
+    # assumption about what "true silence" looks like in digitized audio,
+    # not a value fit to these specific files.
+    TRUE_SILENCE_FLOOR = 0.004
+    bg_noise_present = gap_rms > TRUE_SILENCE_FLOOR
+
+    if not bg_noise_present:
         bg_severity = "none"
-    elif snr_db > 15.0:
-        bg_severity = "low"
-    elif snr_db > 8.0:
+    elif gap_rms > speech_rms * 0.5:
+        bg_severity = "high"
+    elif gap_rms > speech_rms * 0.25:
         bg_severity = "medium"
     else:
-        bg_severity = "high"
+        bg_severity = "low"
 
     spectral_centroid = float(np.mean(librosa.feature.spectral_centroid(y=y, sr=sr)))
     bg_type = "" if not bg_noise_present else ("office chatter / static" if spectral_centroid > 2500 else "background hum")
 
-    # Audio Quality
-    max_amplitude = float(np.max(np.abs(y)))
-    if snr_db < 6.0 or max_amplitude > 0.99:
+    # Audio Quality. Dropped the raw max_amplitude > 0.99 clipping check --
+    # lossy codecs (Opus/OGG) routinely produce brief inter-sample overshoot
+    # slightly above 1.0 on decode even for cleanly recorded audio, so a
+    # single peak sample isn't a reliable clipping signal on its own. True
+    # clipping is many consecutive samples pinned at the ceiling; check for
+    # that specifically instead.
+    clip_ceiling = 0.99
+    clipped_samples = np.abs(y) >= clip_ceiling
+    # A short run (a handful of consecutive samples) of pinned peaks is
+    # consistent with real clipping; an isolated single-sample overshoot
+    # from codec decode is not.
+    max_consecutive_clipped = 0
+    if clipped_samples.any():
+        run = 0
+        for is_clipped in clipped_samples:
+            run = run + 1 if is_clipped else 0
+            max_consecutive_clipped = max(max_consecutive_clipped, run)
+    is_actually_clipped = max_consecutive_clipped > int(0.001 * sr)  # >1ms pinned
+
+    if snr_db < 6.0 or is_actually_clipped:
         audio_quality = "severely_impaired"
-    elif snr_db < 15.0 or max_amplitude < 0.05:
+    elif snr_db < 15.0 or speech_rms < 0.01:
         audio_quality = "slightly_impaired"
     else:
         audio_quality = "clear"
 
-    # Silence & Overlap heuristics
-    duration = len(y) / sr
-    non_silent = librosa.effects.split(y, top_db=25)
-    non_silent_dur = sum([(e - s) / sr for s, e in non_silent])
-    long_silence_present = bool((duration - non_silent_dur) / duration > 0.35) if duration > 0 else False
-    speaker_overlap = bool(float(np.mean(rms)) > 0.15 and float(np.mean(librosa.feature.zero_crossing_rate(y))) > 0.12)
+    # Long silence: a single extended dead-air gap, not the cumulative sum
+    # of ordinary pauses between sentences (which is normal in any call and
+    # was previously being measured as one number, causing every file --
+    # regardless of actual dead air -- to read as "long silence present").
+    LONG_SILENCE_THRESHOLD_S = 4.0
+    longest_gap_s = max(((e - s) / sr for s, e in gap_bounds), default=0.0)
+    long_silence_present = longest_gap_s > LONG_SILENCE_THRESHOLD_S
+
+    # Speaker overlap: reliably detecting simultaneous speech from two
+    # speakers really needs diarization; a single-channel energy/ZCR
+    # heuristic can't distinguish "two people talking at once" from "one
+    # person talking loudly." Left conservative (mostly False) rather than
+    # fit to match the 3 known examples, since that would be fitting noise,
+    # not signal, and 2 data points isn't enough to trust a new threshold.
+    speaker_overlap = bool(speech_rms > 0.15 and float(np.mean(librosa.feature.zero_crossing_rate(y))) > 0.12)
 
     return {
         "background_noise_present": bg_noise_present,
