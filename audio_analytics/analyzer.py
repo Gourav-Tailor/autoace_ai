@@ -81,6 +81,16 @@ def predict_emotion(y: np.ndarray, sr: int) -> tuple[str, str, float]:
     corrected with the same acoustic-feature rules used in analyze_audio_clip so both
     entry points agree and neither one over-predicts "angry"/"upset" on merely loud
     or noisy (but not actually distressed) audio.
+
+    Long audio is chunked before inference. Two independent reasons, not one
+    hand-wavy one: (1) self-attention cost scales with the square of sequence
+    length, so a multi-minute clip is dramatically more expensive -- and more
+    failure-prone -- than a short one, not just proportionally slower; and
+    (2) this checkpoint was trained on short IEMOCAP utterances (a few
+    seconds each), so feeding it several continuous minutes is outside what
+    it was built to reason about even where it doesn't crash. Chunking keeps
+    per-call compute bounded regardless of file length and keeps each
+    inference window close to the model's training distribution.
     """
     try:
         feature_extractor, emotion_model = get_models()
@@ -101,12 +111,27 @@ def predict_emotion(y: np.ndarray, sr: int) -> tuple[str, str, float]:
         if max_amp > 0:
             y = y / max_amp
 
-        inputs = feature_extractor(y, sampling_rate=sr, return_tensors="pt", padding=True)
+        CHUNK_SECONDS = 20
+        chunk_len = CHUNK_SECONDS * sr
+        chunks = [y[i:i + chunk_len] for i in range(0, len(y), chunk_len)] if len(y) > 0 else [y]
+        # Drop a trailing sliver too short to carry meaningful signal (e.g.
+        # the last 0.3s of a chunked file), unless it's the only chunk we have.
+        min_chunk_len = int(0.5 * sr)
+        if len(chunks) > 1 and len(chunks[-1]) < min_chunk_len:
+            chunks = chunks[:-1]
 
-        with torch.no_grad():
-            logits = emotion_model(**inputs).logits
+        chunk_probs = []
+        for chunk in chunks:
+            inputs = feature_extractor(chunk, sampling_rate=sr, return_tensors="pt", padding=True)
+            with torch.no_grad():
+                logits = emotion_model(**inputs).logits
+            chunk_probs.append(torch.nn.functional.softmax(logits, dim=-1)[0].numpy())
 
-        probabilities = torch.nn.functional.softmax(logits, dim=-1)[0].numpy()
+        # Average class probabilities across chunks rather than voting on
+        # each chunk's argmax -- this weighs a chunk the model is unsure
+        # about less than one it's confident about, instead of letting every
+        # chunk's hard decision count equally regardless of confidence.
+        probabilities = np.mean(chunk_probs, axis=0)
 
         mean_rms = float(np.mean(librosa.feature.rms(y=y)[0]))
         zcr = float(np.mean(librosa.feature.zero_crossing_rate(y)))
