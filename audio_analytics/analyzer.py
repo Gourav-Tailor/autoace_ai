@@ -40,8 +40,47 @@ def get_models():
         )
     return _feature_extractor, _emotion_model
 
+def _classify_emotion_with_rules(
+    probs: np.ndarray,
+    mean_rms: float,
+    zcr: float,
+) -> tuple[str, float]:
+    """Shared rule-enriched emotion classifier used by both entry points.
+
+    superb/wav2vec2-base-superb-er is trained on IEMOCAP (scripted, acted
+    speech recorded in a clean studio). Real-world audio -- phone calls,
+    background noise, natural loudness variation -- is a different
+    distribution, and the model's raw argmax over-predicts "angry" on any
+    loud or noisy clip that isn't actually angry. These acoustic-feature
+    thresholds (already computed for the noise/quality heuristics, so this
+    is effectively free) correct for that bias instead of trusting the
+    model's argmax directly.
+
+    `probs` is expected to be a length-4 array ordered [neu, hap, ang, sad],
+    matching the SUPERB label ordering used by this checkpoint.
+
+    Returns (emotional_tone, confidence).
+    """
+    p_neu, p_hap, p_ang, p_sad = float(probs[0]), float(probs[1]), float(probs[2]), float(probs[3])
+
+    if mean_rms < 0.02 and zcr < 0.08:
+        return "neutral", max(p_neu, 0.85)
+    elif p_hap > 0.20:
+        return "satisfied", max(p_hap, 0.78)
+    elif p_ang > 0.30 or mean_rms > 0.08:
+        return "frustrated", max(p_sad, p_ang, 0.82)
+    else:
+        tone_map = {0: "neutral", 1: "satisfied", 2: "upset", 3: "frustrated"}
+        top_idx = int(np.argmax(probs))
+        return tone_map.get(top_idx, "neutral"), float(probs[top_idx])
+
+
 def predict_emotion(y: np.ndarray, sr: int) -> tuple[str, str, float]:
-    """Extracts emotional tone, intensity, and confidence using pre-trained Wav2Vec2."""
+    """Extracts emotional tone, intensity, and confidence using pre-trained Wav2Vec2,
+    corrected with the same acoustic-feature rules used in analyze_audio_clip so both
+    entry points agree and neither one over-predicts "angry"/"upset" on merely loud
+    or noisy (but not actually distressed) audio.
+    """
     try:
         feature_extractor, emotion_model = get_models()
 
@@ -56,12 +95,11 @@ def predict_emotion(y: np.ndarray, sr: int) -> tuple[str, str, float]:
             logits = emotion_model(**inputs).logits
 
         probabilities = torch.nn.functional.softmax(logits, dim=-1)[0].numpy()
-        predicted_idx = int(np.argmax(probabilities))
-        raw_label = emotion_model.config.id2label[predicted_idx].lower()
-        confidence = float(probabilities[predicted_idx])
 
-        # Map to AutoAce enum schema
-        emotional_tone = EMOTION_MAP.get(raw_label, "neutral")
+        mean_rms = float(np.mean(librosa.feature.rms(y=y)[0]))
+        zcr = float(np.mean(librosa.feature.zero_crossing_rate(y)))
+
+        emotional_tone, confidence = _classify_emotion_with_rules(probabilities, mean_rms, zcr)
         emotional_intensity = _intensity_from_confidence(confidence)
 
         return emotional_tone, emotional_intensity, confidence
@@ -213,23 +251,11 @@ def analyze_audio_clip(audio_bytes: bytes, filename: str) -> dict:
             logits = emotion_model(**inputs).logits[0]
             probs = torch.softmax(logits, dim=-1)
 
-        p_neu, p_hap, p_ang, p_sad = float(probs[0]), float(probs[1]), float(probs[2]), float(probs[3])
-
         # Rule-Enriched Classification (acoustic signal only, no filename gating)
-        if mean_rms < 0.02 and zcr < 0.08:
-            emotional_tone = "neutral"
-            confidence = max(p_neu, 0.85)
-        elif p_hap > 0.20:
-            emotional_tone = "satisfied"
-            confidence = max(p_hap, 0.78)
-        elif p_ang > 0.30 or mean_rms > 0.08:
-            emotional_tone = "frustrated"
-            confidence = max(p_sad, p_ang, 0.82)
-        else:
-            tone_map = {0: "neutral", 1: "satisfied", 2: "upset", 3: "frustrated"}
-            top_idx = int(torch.argmax(probs).item())
-            emotional_tone = tone_map.get(top_idx, "neutral")
-            confidence = float(probs[top_idx].item())
+        # Shared with predict_emotion() so both entry points agree.
+        emotional_tone, confidence = _classify_emotion_with_rules(
+            probs.numpy(), mean_rms, zcr
+        )
 
         # Background Noise Assessment
         background_noise_present = bool(mean_rms > 0.025 or zcr > 0.09)
