@@ -194,7 +194,7 @@ def _analyze_acoustic_quality(y: np.ndarray, sr: int) -> dict:
         gap_rms = float(np.percentile(rms, 10))
 
     speech_rms = float(np.mean(rms))
-    snr_db = 20 * np.log10((speech_rms + 1e-6) / (gap_rms + 1e-6))
+    noise_snr_db = 20 * np.log10((speech_rms + 1e-6) / (gap_rms + 1e-6))
 
     # A near-silent room has a gap RMS very close to zero; genuine background
     # noise (TV, static, hum) keeps the gaps measurably above the noise floor
@@ -216,17 +216,26 @@ def _analyze_acoustic_quality(y: np.ndarray, sr: int) -> dict:
     spectral_centroid = float(np.mean(librosa.feature.spectral_centroid(y=y, sr=sr)))
     bg_type = "" if not bg_noise_present else ("office chatter / static" if spectral_centroid > 2500 else "background hum")
 
-    # Audio Quality. Dropped the raw max_amplitude > 0.99 clipping check --
-    # lossy codecs (Opus/OGG) routinely produce brief inter-sample overshoot
-    # slightly above 1.0 on decode even for cleanly recorded audio, so a
-    # single peak sample isn't a reliable clipping signal on its own. True
-    # clipping is many consecutive samples pinned at the ceiling; check for
-    # that specifically instead.
+    # Audio Quality is recording clarity/fidelity -- clipping, garbling,
+    # overall signal strength -- and is a separate axis from whether
+    # background noise exists. A call can have background TV noise and
+    # still be a technically clean, undistorted recording, so this must
+    # not reuse the noise-focused SNR above; it needs its own signal.
+    # Whole-clip dynamic range (loud speech vs. quiet moments) is a
+    # reasonable proxy for "is this a clean recording" independent of
+    # whatever is happening in the background during pauses.
+    noise_floor_pctile = float(np.percentile(rms, 10))
+    signal_peak_pctile = float(np.percentile(rms, 95))
+    dynamic_range_db = 20 * np.log10((signal_peak_pctile + 1e-6) / (noise_floor_pctile + 1e-6))
+
+    # Dropped the raw max_amplitude > 0.99 clipping check -- lossy codecs
+    # (Opus/OGG) routinely produce brief inter-sample overshoot slightly
+    # above 1.0 on decode even for cleanly recorded audio, so a single peak
+    # sample isn't a reliable clipping signal on its own. True clipping is
+    # many consecutive samples pinned at the ceiling; check for that
+    # specifically instead.
     clip_ceiling = 0.99
     clipped_samples = np.abs(y) >= clip_ceiling
-    # A short run (a handful of consecutive samples) of pinned peaks is
-    # consistent with real clipping; an isolated single-sample overshoot
-    # from codec decode is not.
     max_consecutive_clipped = 0
     if clipped_samples.any():
         run = 0
@@ -235,20 +244,28 @@ def _analyze_acoustic_quality(y: np.ndarray, sr: int) -> dict:
             max_consecutive_clipped = max(max_consecutive_clipped, run)
     is_actually_clipped = max_consecutive_clipped > int(0.001 * sr)  # >1ms pinned
 
-    if snr_db < 6.0 or is_actually_clipped:
+    if is_actually_clipped or speech_rms < 0.005:
         audio_quality = "severely_impaired"
-    elif snr_db < 15.0 or speech_rms < 0.01:
+    elif dynamic_range_db < 15.0 or speech_rms < 0.01:
         audio_quality = "slightly_impaired"
     else:
         audio_quality = "clear"
 
-    # Long silence: a single extended dead-air gap, not the cumulative sum
-    # of ordinary pauses between sentences (which is normal in any call and
-    # was previously being measured as one number, causing every file --
-    # regardless of actual dead air -- to read as "long silence present").
+    # Long silence: a single extended stretch of genuinely near-zero energy
+    # (true dead air), not merely "no speech detected." A gap between
+    # sentences that still has background noise in it (TV, static) isn't
+    # actually silent -- it has real signal in it, just not speech -- so it
+    # shouldn't count as "silence" at all. Anchoring this to the same
+    # absolute near-zero floor used for noise detection keeps the two
+    # concepts consistent: a "silent" gap and a "noise-free" gap are the
+    # same underlying condition.
     LONG_SILENCE_THRESHOLD_S = 4.0
-    longest_gap_s = max(((e - s) / sr for s, e in gap_bounds), default=0.0)
-    long_silence_present = longest_gap_s > LONG_SILENCE_THRESHOLD_S
+    true_silence_gap_lengths = [
+        (e - s) / sr for s, e in gap_bounds
+        if float(np.sqrt(np.mean(y[s:e] ** 2))) <= TRUE_SILENCE_FLOOR
+    ]
+    longest_true_silence_s = max(true_silence_gap_lengths, default=0.0)
+    long_silence_present = longest_true_silence_s > LONG_SILENCE_THRESHOLD_S
 
     # Speaker overlap: reliably detecting simultaneous speech from two
     # speakers really needs diarization; a single-channel energy/ZCR
@@ -265,7 +282,7 @@ def _analyze_acoustic_quality(y: np.ndarray, sr: int) -> dict:
         "audio_quality": audio_quality,
         "speaker_overlap_present": speaker_overlap,
         "long_silence_present": long_silence_present,
-        "snr_db": snr_db,
+        "snr_db": noise_snr_db,
     }
 
 
