@@ -90,6 +90,17 @@ def predict_emotion(y: np.ndarray, sr: int) -> tuple[str, str, float]:
             y = librosa.resample(y, orig_sr=sr, target_sr=16000)
             sr = 16000
 
+        # Peak-normalize amplitude before inference. The model was trained on
+        # volume-normalized studio speech (IEMOCAP); real call recordings have
+        # inconsistent gain, and amplitude-sensitive models like this one are
+        # known to conflate loudness with "anger" arousal. This mirrors the
+        # normalization analyze_audio_clip already does, applied uniformly
+        # regardless of the audio's content -- it isn't tuned against any
+        # specific labels.
+        max_amp = float(np.max(np.abs(y))) if len(y) > 0 else 0.0
+        if max_amp > 0:
+            y = y / max_amp
+
         inputs = feature_extractor(y, sampling_rate=sr, return_tensors="pt", padding=True)
 
         with torch.no_grad():
