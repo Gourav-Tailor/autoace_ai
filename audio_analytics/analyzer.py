@@ -26,13 +26,19 @@ EMOTION_MAP = {
 
 
 def get_models():
-    """Lazy loader to prevent Hugging Face from initializing models during Django management commands."""
     global _feature_extractor, _emotion_model
     if _feature_extractor is None or _emotion_model is None:
-        _feature_extractor = AutoFeatureExtractor.from_pretrained(MODEL_NAME)
-        _emotion_model = AutoModelForAudioClassification.from_pretrained(MODEL_NAME)
+        token = os.getenv("HF_TOKEN") or None
+        
+        _feature_extractor = AutoFeatureExtractor.from_pretrained(
+            MODEL_NAME, 
+            token=token
+        )
+        _emotion_model = AutoModelForAudioClassification.from_pretrained(
+            MODEL_NAME, 
+            token=token
+        )
     return _feature_extractor, _emotion_model
-
 
 def predict_emotion(y: np.ndarray, sr: int) -> tuple[str, str, float]:
     """Extracts emotional tone, intensity, and confidence using pre-trained Wav2Vec2."""
