@@ -1,7 +1,7 @@
 import os
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
-
+from django.contrib.auth.models import User
 
 class BatchUpload(models.Model):
     class Status(models.TextChoices):
@@ -10,6 +10,7 @@ class BatchUpload(models.Model):
         COMPLETED = 'completed', 'Completed'
         FAILED = 'failed', 'Failed'
 
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="batches", null=True, blank=True)
     zip_file = models.FileField(upload_to='batches/')
     uploaded_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(
