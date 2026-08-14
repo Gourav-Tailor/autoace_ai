@@ -80,7 +80,6 @@ def process_batch_upload_task(batch_id, zip_file_path):
                         speaker_overlap_present=result["speaker_overlap_present"],
                         long_silence_present=result["long_silence_present"],
                         confidence=result["confidence"],
-                        raw_json=json.dumps(result)
                     )
 
                     result_with_name = dict(result)
