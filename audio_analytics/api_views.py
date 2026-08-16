@@ -4,6 +4,7 @@ import os
 import tempfile
 import zipfile
 import traceback
+import uuid
 from django.http import JsonResponse
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
@@ -65,13 +66,23 @@ class LongRecorderBatchView(View):
                 chunk_dir = os.path.join(tempfile.gettempdir(), f"batch_stream_{batch_id}")
                 os.makedirs(chunk_dir, exist_ok=True)
 
-                raw_path = os.path.join(chunk_dir, f"temp_{chunk_index}.webm")
+                # Unique raw filename per upload (not just per chunk_index) so two
+                # concurrent requests -- e.g. a duplicate POST from a network/proxy
+                # retry -- can never collide on the same temp path and delete each
+                # other's file mid-conversion.
+                raw_path = os.path.join(chunk_dir, f"temp_{chunk_index}_{uuid.uuid4().hex}.webm")
                 wav_path = os.path.join(chunk_dir, f"chunk_{int(chunk_index):04d}.wav")
 
                 # Save raw browser chunk
                 with open(raw_path, "wb+") as dst:
                     for chunk in audio_file.chunks():
                         dst.write(chunk)
+
+                if not os.path.exists(raw_path) or os.path.getsize(raw_path) == 0:
+                    return JsonResponse(
+                        {"error": f"Uploaded chunk {chunk_index} was empty or failed to save."},
+                        status=400,
+                    )
 
                 # Convert WebM/OGG to standard 16kHz Mono WAV via Pydub
                 try:
@@ -80,7 +91,8 @@ class LongRecorderBatchView(View):
                     sound.export(wav_path, format="wav")
                 except Exception:
                     # Fallback copy if pydub/ffmpeg is not present
-                    os.rename(raw_path, wav_path)
+                    if os.path.exists(raw_path):
+                        os.rename(raw_path, wav_path)
                 finally:
                     if os.path.exists(raw_path):
                         os.remove(raw_path)
