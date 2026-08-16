@@ -21,6 +21,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'default-unsafe-secret-key')
 DEBUG = os.environ.get('DEBUG', '0') == '1'
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
+AUTH_USER_MODEL = "auth.User"
 # Application definition
 
 INSTALLED_APPS = [
@@ -30,8 +31,20 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "rest_framework",
+    "rest_framework.authtoken",
     "audio_analytics",
 ]
+
+REST_FRAMEWORK = {
+    # Devices authenticate via Authorization: Token <key>
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.TokenAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+}
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

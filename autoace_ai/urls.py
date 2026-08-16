@@ -3,6 +3,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
+from audio_analytics import api_v1
 
 urlpatterns = [
     # Admin Interface
@@ -16,6 +17,11 @@ urlpatterns = [
     
     # App Routes (Dashboard, Upload, Batches)
     path('', include('audio_analytics.urls')),
+
+    path("api/v1/sessions/", api_v1.SessionInitView.as_view(), name="api_v1_session_init"),
+    path("api/v1/sessions/<int:batch_id>/chunks/", api_v1.SessionChunkView.as_view(), name="api_v1_session_chunk"),
+    path("api/v1/sessions/<int:batch_id>/finalize/", api_v1.SessionFinalizeView.as_view(), name="api_v1_session_finalize"),
+    path("api/v1/sessions/<int:batch_id>/heartbeat/", api_v1.SessionHeartbeatView.as_view(), name="api_v1_session_heartbeat"),
 ]
 
 if settings.DEBUG:
