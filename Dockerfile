@@ -21,4 +21,4 @@ COPY . /app/
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "python manage.py wait_for_db && python manage.py migrate && gunicorn autoace_ai.wsgi:application --bind 0.0.0.0:8000 --workers 3"]
+CMD ["sh", "-c", "python manage.py wait_for_db && python manage.py migrate && python -c \"import librosa, numpy as np; librosa.feature.rms(y=np.zeros(16000, dtype=np.float32)); librosa.effects.split(np.zeros(16000, dtype=np.float32)); print('librosa/numba warm-up complete')\" && gunicorn autoace_ai.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120"]

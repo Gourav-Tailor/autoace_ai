@@ -37,6 +37,8 @@ let activeBatchId = null;
 let chunkIndex = 0;
 let timerInterval;
 let startTime;
+let lastChunkUpload = Promise.resolve();
+let recorderStopped = Promise.resolve();
 
 const startBtn = document.getElementById('startRecBtn');
 const stopBtn = document.getElementById('stopRecBtn');
@@ -83,11 +85,19 @@ startBtn.addEventListener('click', async () => {
         // Step 2: Start MediaRecorder with 30-second chunk slices (30000 ms)
         mediaRecorder = new MediaRecorder(stream);
 
-        mediaRecorder.ondataavailable = async (e) => {
+        recorderStopped = new Promise((resolve) => {
+            mediaRecorder.onstop = resolve;
+        });
+
+        mediaRecorder.ondataavailable = (e) => {
             if (e.data.size > 0 && activeBatchId) {
-                await uploadChunk(e.data, chunkIndex);
+                const index = chunkIndex;
                 chunkIndex++;
-                chunkCounter.textContent = `Chunks Uploaded: ${chunkIndex}`;
+                // Track this upload so 'stop' handling can wait for the
+                // final (possibly still in-flight) chunk before finalizing.
+                lastChunkUpload = uploadChunk(e.data, index).then(() => {
+                    chunkCounter.textContent = `Chunks Uploaded: ${chunkIndex}`;
+                });
             }
         };
 
@@ -120,9 +130,16 @@ stopBtn.addEventListener('click', async () => {
     stopBtn.disabled = true;
     processingAlert.classList.remove('d-none');
 
-    // Stop recorder track
+    // Stop recorder track. This triggers one final 'dataavailable' event
+    // (with whatever hasn't been flushed yet) followed by 'onstop' -- both
+    // happen asynchronously, so we must wait for them before finalizing,
+    // or the last chunk (sometimes the *only* chunk, for short recordings)
+    // won't have finished uploading yet.
     mediaRecorder.stop();
     mediaRecorder.stream.getTracks().forEach(track => track.stop());
+
+    await recorderStopped;
+    await lastChunkUpload;
 
     // Step 3: Finalize Batch Session
     const formData = new FormData();
@@ -136,7 +153,7 @@ stopBtn.addEventListener('click', async () => {
     if (data.redirect_url) {
         window.location.href = data.redirect_url;
     } else {
-        alert("Batch queueing failed.");
+        alert(data.error || "Batch queueing failed.");
     }
 });
 
