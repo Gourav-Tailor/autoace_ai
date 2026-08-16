@@ -2,11 +2,16 @@
 
 import os
 import tempfile
+import zipfile
+import traceback
 from django.http import JsonResponse
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from pydub import AudioSegment
 from .analyzer import analyze_audio_clip
+from .models import BatchUpload
+from .tasks import process_batch_upload_task
 
 @method_decorator(csrf_exempt, name="dispatch")
 class LiveDemoAnalysisView(View):
@@ -28,3 +33,100 @@ class LiveDemoAnalysisView(View):
             return JsonResponse({"success": True, "data": result})
         except Exception as e:
             return JsonResponse({"error": f"Failed to analyze recording: {str(e)}"}, status=500)
+
+
+class LongRecorderBatchView(View):
+    def post(self, request):
+        if not request.user.is_authenticated:
+            return JsonResponse({"error": "User authentication required. Please log in first."}, status=401)
+
+        action = request.POST.get("action")
+
+        try:
+            # 1. Initialize Batch Session
+            if action == "init":
+                title = request.POST.get("title", "Long Live Recording")
+                batch = BatchUpload.objects.create(
+                    user=request.user,
+                    name=f"{title} (Live Stream)",
+                    status="recording"
+                )
+                return JsonResponse({"status": "success", "batch_id": batch.id})
+
+            # 2. Upload and Convert Chunk
+            elif action == "upload_chunk":
+                batch_id = request.POST.get("batch_id")
+                chunk_index = request.POST.get("index")
+                audio_file = request.FILES.get("chunk_data")
+
+                if not batch_id or not audio_file:
+                    return JsonResponse({"error": "Missing batch_id or audio content"}, status=400)
+
+                chunk_dir = os.path.join(tempfile.gettempdir(), f"batch_stream_{batch_id}")
+                os.makedirs(chunk_dir, exist_ok=True)
+
+                raw_path = os.path.join(chunk_dir, f"temp_{chunk_index}.webm")
+                wav_path = os.path.join(chunk_dir, f"chunk_{int(chunk_index):04d}.wav")
+
+                # Save raw browser chunk
+                with open(raw_path, "wb+") as dst:
+                    for chunk in audio_file.chunks():
+                        dst.write(chunk)
+
+                # Convert WebM/OGG to standard 16kHz Mono WAV via Pydub
+                try:
+                    sound = AudioSegment.from_file(raw_path)
+                    sound = sound.set_frame_rate(16000).set_channels(1)
+                    sound.export(wav_path, format="wav")
+                except Exception:
+                    # Fallback copy if pydub/ffmpeg is not present
+                    os.rename(raw_path, wav_path)
+                finally:
+                    if os.path.exists(raw_path):
+                        os.remove(raw_path)
+
+                return JsonResponse({"status": "chunk_saved", "filename": f"chunk_{int(chunk_index):04d}.wav"})
+
+            # 3. Finalize Session & Trigger Async Task
+            elif action == "finalize":
+                batch_id = request.POST.get("batch_id")
+                if not batch_id:
+                    return JsonResponse({"error": "Missing batch_id"}, status=400)
+
+                batch = BatchUpload.objects.filter(id=batch_id, user=request.user).first()
+                if not batch:
+                    return JsonResponse({"error": "Batch session not found"}, status=404)
+
+                chunk_dir = os.path.join(tempfile.gettempdir(), f"batch_stream_{batch_id}")
+                if not os.path.exists(chunk_dir):
+                    return JsonResponse({"error": "No recorded audio chunks found on server"}, status=400)
+
+                zip_path = os.path.join(tempfile.gettempdir(), f"batch_{batch_id}_audio.zip")
+                with zipfile.ZipFile(zip_path, "w") as zipf:
+                    for root, _, files in os.walk(chunk_dir):
+                        for file in sorted(files):
+                            if file.endswith(".wav"):
+                                file_path = os.path.join(root, file)
+                                zipf.write(file_path, arcname=file)
+
+                # Clean temp directory
+                for f in os.listdir(chunk_dir):
+                    os.remove(os.path.join(chunk_dir, f))
+                os.rmdir(chunk_dir)
+
+                batch.status = "pending"
+                batch.save()
+
+                process_batch_upload_task.delay(batch.id, zip_path)
+
+                return JsonResponse({
+                    "status": "queued",
+                    "redirect_url": f"/batches/{batch.id}/"
+                })
+
+            return JsonResponse({"error": "Invalid action requested"}, status=400)
+
+        except Exception as e:
+            # Print exact stacktrace in server logs for easy debugging
+            traceback.print_exc()
+            return JsonResponse({"error": f"Internal Server Error: {str(e)}"}, status=500)

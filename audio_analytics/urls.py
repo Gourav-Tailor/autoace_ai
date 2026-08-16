@@ -7,7 +7,7 @@ from .views import (
     ExportBatchResultsView,
     SignUpView
 )
-from .api_views import LiveDemoAnalysisView
+from .api_views import LiveDemoAnalysisView, LongRecorderBatchView
 from django.views.generic import TemplateView
 
 urlpatterns = [
@@ -20,4 +20,6 @@ urlpatterns = [
     path('batches/', BatchListView.as_view(), name='batch_list'),
     path('batches/<int:pk>/', BatchDetailView.as_view(), name='batch_detail'),
     path('batches/<int:pk>/export/', ExportBatchResultsView.as_view(), name='batch_export'),
+    path("long-recorder/", TemplateView.as_view(template_name="audio_analytics/long_recorder.html"), name="long_recorder"),
+    path("api/long-recorder/", LongRecorderBatchView.as_view(), name="long_recorder_api"),
 ]

@@ -20,6 +20,7 @@ class BatchUpload(models.Model):
     )
     error_message = models.TextField(blank=True, null=True)
     metrics_json = models.TextField(blank=True, null=True)  # Stores F1, Accuracy, and Confusion Matrix
+    name = models.CharField(max_length=255, default="Live Recording")
 
     def get_metrics(self):
         if self.metrics_json:

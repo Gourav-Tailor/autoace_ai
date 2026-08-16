@@ -143,6 +143,9 @@ def predict_emotion(y: np.ndarray, sr: int) -> tuple[str, str, float]:
 
     except Exception:
         # Fallback in case of inference issues
+        import traceback
+        print("=== predict_emotion failed, falling back to neutral/low/0.50 ===")
+        traceback.print_exc()
         return "neutral", "low", 0.50
 
 
@@ -318,6 +321,9 @@ def analyze_audio_quality_and_noise(file_path: str) -> dict:
         }
 
     except Exception as e:
+        import traceback
+        print("=== analyze_audio_quality_and_noise failed ===")
+        traceback.print_exc()
         return {"error": str(e)}
 
 
@@ -414,4 +420,7 @@ def analyze_audio_clip(audio_bytes: bytes, filename: str) -> dict:
         }
 
     except Exception as e:
+        import traceback
+        print("=== analyze_audio_clip failed (this is what /api/demo-analyze/ hits) ===")
+        traceback.print_exc()
         return {"error": str(e)}

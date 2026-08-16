@@ -47,6 +47,9 @@
                            class="{% if request.resolver_match.url_name == 'batch_list' %}active{% endif %}">
                             Batch Processing
                         </a>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'long_recorder' %}">Live Recorder</a>
+                        </li>
                     </nav>
 
                     <div class="mt-auto pt-3 border-top border-secondary">
