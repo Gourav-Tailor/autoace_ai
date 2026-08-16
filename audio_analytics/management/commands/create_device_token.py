@@ -7,18 +7,21 @@ Example:
     python manage.py create_device_token gourav "Living Room ESP32"
     python manage.py create_device_token gourav "iPhone App"
 
-Prints the API token the device/app should send as:
+Each call creates a NEW device with its own unique key -- unlike the
+DRF authtoken Token model, there's no one-per-user limit here, so you
+can run this as many times as you have devices.
+
+Prints the key the device/app should send as:
     Authorization: Token <key>
 """
 from django.core.management.base import BaseCommand, CommandError
 from django.contrib.auth import get_user_model
-from rest_framework.authtoken.models import Token
 
 from audio_analytics.models import Device
 
 
 class Command(BaseCommand):
-    help = "Create a Device + API token for a user, for ESP32/Raspberry Pi/mobile clients."
+    help = "Create a new Device with its own API key, for ESP32/Raspberry Pi/mobile clients."
 
     def add_arguments(self, parser):
         parser.add_argument("username", type=str)
@@ -31,21 +34,11 @@ class Command(BaseCommand):
         except User.DoesNotExist:
             raise CommandError(f"No such user: {options['username']}")
 
-        token, _ = Token.objects.get_or_create(user=user)
+        device = Device.objects.create(user=user, name=options["device_name"])
 
-        device, created = Device.objects.get_or_create(
-            user=user,
-            name=options["device_name"],
-            defaults={"api_token": token},
-        )
-        if not created and device.api_token_id != token.id:
-            device.api_token = token
-            device.save(update_fields=["api_token"])
-
-        action = "Created" if created else "Updated"
         self.stdout.write(self.style.SUCCESS(
-            f"{action} device '{device.name}' for user '{user.username}'.\n"
-            f"API Token: {token.key}\n\n"
+            f"Created device '{device.name}' for user '{user.username}'.\n"
+            f"API Token: {device.key}\n\n"
             f"Have the device send this header on every request:\n"
-            f"  Authorization: Token {token.key}"
+            f"  Authorization: Token {device.key}"
         ))

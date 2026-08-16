@@ -4,11 +4,19 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.contrib.auth.models import User
 from rest_framework.authtoken.models import Token
 from django.conf import settings
+import secrets
+import json
+
+def generate_device_key():
+    return secrets.token_hex(20)  # 40 hex chars
+
 
 class Device(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="devices")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="devices"
+    )
     name = models.CharField(max_length=100)  # e.g. "Living Room ESP32", "iPhone App"
-    api_token = models.OneToOneField(Token, on_delete=models.CASCADE)
+    key = models.CharField(max_length=64, unique=True, default=generate_device_key, editable=False)
     last_seen = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -35,8 +43,8 @@ class BatchUpload(models.Model):
     metrics_json = models.TextField(blank=True, null=True)  # Stores F1, Accuracy, and Confusion Matrix
     name = models.CharField(max_length=255, default="Live Recording")
     device = models.ForeignKey(
-            Device, null=True, blank=True, on_delete=models.SET_NULL, related_name="batches"
-        )
+        Device, null=True, blank=True, on_delete=models.SET_NULL, related_name="batches"
+    )
     
     def get_metrics(self):
         if self.metrics_json:
