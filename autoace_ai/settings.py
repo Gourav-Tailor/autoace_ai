@@ -37,9 +37,8 @@ INSTALLED_APPS = [
 ]
 
 REST_FRAMEWORK = {
-    # Devices authenticate via Authorization: Token <key>
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.TokenAuthentication",
+        "audio_analytics.device_authentication.DeviceAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",

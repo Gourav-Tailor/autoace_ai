@@ -38,13 +38,12 @@ def _chunk_dir(batch_id):
 
 
 def _touch_device(request):
-    """Update last_seen on the Device tied to this request's token, if any."""
-    try:
-        device = Device.objects.get(api_token=request.auth)
-        device.last_seen = timezone.now()
-        device.save(update_fields=["last_seen"])
-    except Device.DoesNotExist:
-        pass
+    device = request.auth
+
+    device.last_seen = timezone.now()
+    device.save(update_fields=["last_seen"])
+
+    return device
 
 
 class SessionInitView(APIView):
