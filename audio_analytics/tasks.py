@@ -12,19 +12,13 @@ from .evaluator import evaluate_predictions_against_ground_truth
 @shared_task
 def process_audio_chunk_task(batch_id, wav_path, filename):
     """
-    Analyze one live-uploaded audio chunk immediately.
-
-    The chunk is already normalized to WAV by SessionChunkView. The task
-    creates the AudioAnalysis row for this chunk and cleans up the temporary
-    WAV afterward.
+    Process one live audio chunk immediately.
     """
-    batch = None
 
     try:
         batch = BatchUpload.objects.get(id=batch_id)
 
-        # Idempotency: a retry of the same Celery task must not create a
-        # duplicate AudioAnalysis row.
+        # Prevent duplicate processing.
         if AudioAnalysis.objects.filter(
             batch=batch,
             filename=filename,
@@ -63,35 +57,6 @@ def process_audio_chunk_task(batch_id, wav_path, filename):
             confidence=result["confidence"],
         )
 
-        batch.processed_files = AudioAnalysis.objects.filter(
-            batch=batch,
-            status=AudioAnalysis.ProcessingStatus.SUCCESS,
-        ).count()
-
-        batch.failed_files = AudioAnalysis.objects.filter(
-            batch=batch,
-            status=AudioAnalysis.ProcessingStatus.FAILED,
-        ).count()
-
-        batch.total_files = max(
-            batch.total_files or 0,
-            batch.processed_files + batch.failed_files,
-        )
-
-        # Keep the live batch in processing state while chunks are arriving.
-        # Finalize changes it to completed.
-        if batch.status == BatchUpload.Status.RECORDING:
-            batch.status = BatchUpload.Status.PROCESSING
-
-        batch.save(
-            update_fields=[
-                "status",
-                "total_files",
-                "processed_files",
-                "failed_files",
-            ]
-        )
-
         return {
             "status": "processed",
             "batch_id": batch_id,
@@ -99,50 +64,19 @@ def process_audio_chunk_task(batch_id, wav_path, filename):
         }
 
     except Exception as e:
-        if batch is not None:
-            AudioAnalysis.objects.update_or_create(
-                batch=batch,
-                filename=filename,
-                defaults={
-                    "status": AudioAnalysis.ProcessingStatus.FAILED,
-                    "error_details": str(e),
-                },
-            )
-
-            batch.processed_files = AudioAnalysis.objects.filter(
-                batch=batch,
-                status=AudioAnalysis.ProcessingStatus.SUCCESS,
-            ).count()
-
-            batch.failed_files = AudioAnalysis.objects.filter(
-                batch=batch,
-                status=AudioAnalysis.ProcessingStatus.FAILED,
-            ).count()
-
-            batch.total_files = max(
-                batch.total_files or 0,
-                batch.processed_files + batch.failed_files,
-            )
-
-            batch.save(
-                update_fields=[
-                    "total_files",
-                    "processed_files",
-                    "failed_files",
-                ]
-            )
-
+        print(
+            f"Chunk processing failed: "
+            f"batch={batch_id}, filename={filename}, error={e}"
+        )
         raise
 
     finally:
-        # The temporary WAV belongs to this task. Once the analyzer has read
-        # it, it can be removed without affecting later chunks.
+        # Remove temporary WAV after processing.
         if os.path.exists(wav_path):
             try:
                 os.remove(wav_path)
             except OSError:
                 pass
-
 
 @shared_task
 def process_batch_upload_task(batch_id, zip_file_path):
