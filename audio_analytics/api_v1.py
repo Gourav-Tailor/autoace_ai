@@ -28,7 +28,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from pydub import AudioSegment
-
+from .device_authentication import DeviceAuthentication
 from .models import BatchUpload, Device
 from .tasks import process_batch_upload_task
 
@@ -49,7 +49,7 @@ def _touch_device(request):
 class SessionInitView(APIView):
     """POST /api/v1/sessions/  ->  start a new recording session (batch)."""
 
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [DeviceAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -79,7 +79,7 @@ class SessionChunkView(APIView):
     devices on flaky networks WILL retry requests that actually succeeded.
     """
 
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [DeviceAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request, batch_id):
@@ -153,7 +153,7 @@ class SessionChunkView(APIView):
 class SessionFinalizeView(APIView):
     """POST /api/v1/sessions/<batch_id>/finalize/  ->  zip chunks & queue processing."""
 
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [DeviceAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request, batch_id):
@@ -205,7 +205,7 @@ class SessionHeartbeatView(APIView):
     without guessing from chunk upload timestamps alone.
     """
 
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [DeviceAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request, batch_id):
