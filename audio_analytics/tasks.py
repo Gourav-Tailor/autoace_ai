@@ -10,6 +10,141 @@ from .evaluator import evaluate_predictions_against_ground_truth
 
 
 @shared_task
+def process_audio_chunk_task(batch_id, wav_path, filename):
+    """
+    Analyze one live-uploaded audio chunk immediately.
+
+    The chunk is already normalized to WAV by SessionChunkView. The task
+    creates the AudioAnalysis row for this chunk and cleans up the temporary
+    WAV afterward.
+    """
+    batch = None
+
+    try:
+        batch = BatchUpload.objects.get(id=batch_id)
+
+        # Idempotency: a retry of the same Celery task must not create a
+        # duplicate AudioAnalysis row.
+        if AudioAnalysis.objects.filter(
+            batch=batch,
+            filename=filename,
+        ).exists():
+            return {
+                "status": "already_processed",
+                "batch_id": batch_id,
+                "filename": filename,
+            }
+
+        if not os.path.exists(wav_path):
+            raise FileNotFoundError(
+                f"Audio chunk not found: {wav_path}"
+            )
+
+        with open(wav_path, "rb") as audio_file:
+            audio_data = audio_file.read()
+
+        result = analyze_audio_clip(audio_data, filename)
+
+        if "error" in result:
+            raise RuntimeError(result["error"])
+
+        AudioAnalysis.objects.create(
+            batch=batch,
+            filename=filename,
+            status=AudioAnalysis.ProcessingStatus.SUCCESS,
+            emotional_tone=result["emotional_tone"],
+            emotional_intensity=result["emotional_intensity"],
+            background_noise_present=result["background_noise_present"],
+            background_noise_type=result["background_noise_type"],
+            background_noise_severity=result["background_noise_severity"],
+            audio_quality=result["audio_quality"],
+            speaker_overlap_present=result["speaker_overlap_present"],
+            long_silence_present=result["long_silence_present"],
+            confidence=result["confidence"],
+        )
+
+        batch.processed_files = AudioAnalysis.objects.filter(
+            batch=batch,
+            status=AudioAnalysis.ProcessingStatus.SUCCESS,
+        ).count()
+
+        batch.failed_files = AudioAnalysis.objects.filter(
+            batch=batch,
+            status=AudioAnalysis.ProcessingStatus.FAILED,
+        ).count()
+
+        batch.total_files = max(
+            batch.total_files or 0,
+            batch.processed_files + batch.failed_files,
+        )
+
+        # Keep the live batch in processing state while chunks are arriving.
+        # Finalize changes it to completed.
+        if batch.status == BatchUpload.Status.RECORDING:
+            batch.status = BatchUpload.Status.PROCESSING
+
+        batch.save(
+            update_fields=[
+                "status",
+                "total_files",
+                "processed_files",
+                "failed_files",
+            ]
+        )
+
+        return {
+            "status": "processed",
+            "batch_id": batch_id,
+            "filename": filename,
+        }
+
+    except Exception as e:
+        if batch is not None:
+            AudioAnalysis.objects.update_or_create(
+                batch=batch,
+                filename=filename,
+                defaults={
+                    "status": AudioAnalysis.ProcessingStatus.FAILED,
+                    "error_details": str(e),
+                },
+            )
+
+            batch.processed_files = AudioAnalysis.objects.filter(
+                batch=batch,
+                status=AudioAnalysis.ProcessingStatus.SUCCESS,
+            ).count()
+
+            batch.failed_files = AudioAnalysis.objects.filter(
+                batch=batch,
+                status=AudioAnalysis.ProcessingStatus.FAILED,
+            ).count()
+
+            batch.total_files = max(
+                batch.total_files or 0,
+                batch.processed_files + batch.failed_files,
+            )
+
+            batch.save(
+                update_fields=[
+                    "total_files",
+                    "processed_files",
+                    "failed_files",
+                ]
+            )
+
+        raise
+
+    finally:
+        # The temporary WAV belongs to this task. Once the analyzer has read
+        # it, it can be removed without affecting later chunks.
+        if os.path.exists(wav_path):
+            try:
+                os.remove(wav_path)
+            except OSError:
+                pass
+
+
+@shared_task
 def process_batch_upload_task(batch_id, zip_file_path):
     batch = None
     try:

@@ -30,7 +30,10 @@ from rest_framework import status
 from pydub import AudioSegment
 from .device_authentication import DeviceAuthentication
 from .models import BatchUpload, Device
-from .tasks import process_batch_upload_task
+from .tasks import (
+    process_batch_upload_task,
+    process_audio_chunk_task,
+)
 
 
 def _chunk_dir(batch_id):
@@ -138,9 +141,25 @@ class SessionChunkView(APIView):
                 if os.path.exists(raw_path):
                     os.remove(raw_path)
 
+            filename = os.path.basename(wav_path)
+
+            # Process this chunk immediately in Celery. The recording
+            # session can continue uploading subsequent chunks while this
+            # one is being analyzed.
+            process_audio_chunk_task.delay(
+                batch.id,
+                wav_path,
+                filename,
+            )
+
             return Response(
-                {"status": "chunk_saved", "filename": os.path.basename(wav_path)},
-                status=status.HTTP_200_OK,
+                {
+                    "status": "chunk_queued",
+                    "filename": filename,
+                    "index": chunk_index,
+                    "processing": True,
+                },
+                status=status.HTTP_202_ACCEPTED,
             )
         except Exception as e:
             traceback.print_exc()
@@ -151,7 +170,7 @@ class SessionChunkView(APIView):
 
 
 class SessionFinalizeView(APIView):
-    """POST /api/v1/sessions/<batch_id>/finalize/  ->  zip chunks & queue processing."""
+    """POST /api/v1/sessions/<batch_id>/finalize/ -> finish a live recording."""
 
     authentication_classes = [DeviceAuthentication]
     permission_classes = [IsAuthenticated]
@@ -159,41 +178,45 @@ class SessionFinalizeView(APIView):
     def post(self, request, batch_id):
         _touch_device(request)
 
-        batch = BatchUpload.objects.filter(id=batch_id, user=request.user).first()
+        batch = BatchUpload.objects.filter(
+            id=batch_id,
+            user=request.user,
+        ).first()
+
         if not batch:
-            return Response({"error": "Session not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Session not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
+        # Chunks are already processed individually as they arrive.
+        # Finalize only marks the live recording as finished; it must NOT
+        # enqueue process_batch_upload_task again, otherwise every chunk
+        # would be analyzed a second time.
         chunk_dir = _chunk_dir(batch_id)
-        if not os.path.exists(chunk_dir) or not os.listdir(chunk_dir):
-            return Response(
-                {"error": "No recorded audio chunks found on server"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
 
-        try:
-            zip_path = os.path.join(tempfile.gettempdir(), f"batch_{batch_id}_audio.zip")
-            with zipfile.ZipFile(zip_path, "w") as zipf:
-                for root, _, files in os.walk(chunk_dir):
-                    for f in sorted(files):
-                        if f.endswith(".wav"):
-                            zipf.write(os.path.join(root, f), arcname=f)
+        if os.path.exists(chunk_dir):
+            try:
+                for filename in os.listdir(chunk_dir):
+                    path = os.path.join(chunk_dir, filename)
+                    if os.path.isfile(path):
+                        os.remove(path)
+                os.rmdir(chunk_dir)
+            except OSError:
+                # A chunk may still be in use by a Celery worker. The worker
+                # owns cleanup of the individual WAV after analysis.
+                pass
 
-            for f in os.listdir(chunk_dir):
-                os.remove(os.path.join(chunk_dir, f))
-            os.rmdir(chunk_dir)
+        batch.status = "completed"
+        batch.save(update_fields=["status"])
 
-            batch.status = "pending"
-            batch.save(update_fields=["status"])
-
-            process_batch_upload_task.delay(batch.id, zip_path)
-
-            return Response({"status": "queued", "batch_id": batch.id}, status=status.HTTP_200_OK)
-        except Exception as e:
-            traceback.print_exc()
-            return Response(
-                {"error": f"Internal Server Error: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+        return Response(
+            {
+                "status": "completed",
+                "batch_id": batch.id,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class SessionHeartbeatView(APIView):
