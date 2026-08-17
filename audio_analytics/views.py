@@ -2,17 +2,33 @@ import csv
 import os
 import json
 import tempfile
+
 from django.contrib.auth import login
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.files import File
+from django.core.paginator import Paginator
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse_lazy
 from django.views import View
 from django.views.generic import DetailView, ListView, TemplateView
+
 from .forms import SignUpForm
 from .models import AudioAnalysis, BatchUpload
 from .tasks import process_batch_upload_task
+
+
+PAGE_SIZE_OPTIONS = (10, 25, 50, 100)
+DEFAULT_PAGE_SIZE = 10
+
+
+def get_page_size(request):
+    """Return a safe page size from the query string."""
+    try:
+        page_size = int(request.GET.get("page_size", DEFAULT_PAGE_SIZE))
+    except (TypeError, ValueError):
+        return DEFAULT_PAGE_SIZE
+
+    return page_size if page_size in PAGE_SIZE_OPTIONS else DEFAULT_PAGE_SIZE
 
 
 class SignUpView(View):
@@ -49,8 +65,12 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             analysis_qs = AudioAnalysis.objects.filter(batch__user=self.request.user)
 
         context["recent_batches"] = batch_qs.order_by("-uploaded_at")[:5]
-        context["total_analyzed"] = analysis_qs.filter(status=AudioAnalysis.ProcessingStatus.SUCCESS).count()
-        context["failed_count"] = analysis_qs.filter(status=AudioAnalysis.ProcessingStatus.FAILED).count()
+        context["total_analyzed"] = analysis_qs.filter(
+            status=AudioAnalysis.ProcessingStatus.SUCCESS
+        ).count()
+        context["failed_count"] = analysis_qs.filter(
+            status=AudioAnalysis.ProcessingStatus.FAILED
+        ).count()
         return context
 
 
@@ -63,7 +83,10 @@ class BatchUploadView(LoginRequiredMixin, View):
     def post(self, request, *args, **kwargs):
         zip_file = request.FILES.get("zip_file")
         if not zip_file or not zip_file.name.endswith(".zip"):
-            return JsonResponse({"error": "Please upload a valid .zip archive."}, status=400)
+            return JsonResponse(
+                {"error": "Please upload a valid .zip archive."},
+                status=400,
+            )
 
         # Save the upload to a temp path on disk so the Celery worker
         # (which may run in a separate process/container) can read it by
@@ -85,16 +108,17 @@ class BatchUploadView(LoginRequiredMixin, View):
                 status=BatchUpload.Status.PROCESSING,
             )
 
-        # Dispatch async task to background worker
+        # Dispatch async task to background worker.
         process_batch_upload_task.delay(batch.id, temp_zip_path)
 
-        # Immediately redirect user to batch details page
+        # Immediately redirect user to batch details page.
         return redirect("batch_detail", pk=batch.pk)
 
 
 class BatchListView(LoginRequiredMixin, ListView):
-    """List view for reviewing all uploaded batches.
+    """List batches with server-side pagination and selectable page size.
     Superusers see every batch; regular users see only their own."""
+
     model = BatchUpload
     template_name = "audio_analytics/batch_list.html"
     context_object_name = "batches"
@@ -102,14 +126,27 @@ class BatchListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        if self.request.user.is_superuser:
-            return qs
-        return qs.filter(user=self.request.user)
+        if not self.request.user.is_superuser:
+            qs = qs.filter(user=self.request.user)
+        return qs.order_by("-uploaded_at", "-id")
+
+    def get_paginate_by(self, queryset):
+        return get_page_size(self.request)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_size"] = get_page_size(self.request)
+        context["page_size_options"] = PAGE_SIZE_OPTIONS
+        return context
 
 
 class BatchDetailView(LoginRequiredMixin, DetailView):
-    """Detail view showing individual audio clip predictions and batch progress.
-    Non-superusers can only access batches they own (404 otherwise)."""
+    """Detail view showing paginated audio clip predictions and a graph for
+    exactly the analysis records displayed on the current page.
+
+    Non-superusers can only access batches they own (404 otherwise).
+    """
+
     model = BatchUpload
     template_name = "audio_analytics/batch_detail.html"
     context_object_name = "batch"
@@ -122,8 +159,45 @@ class BatchDetailView(LoginRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["analyses"] = self.object.analyses.all()
-        context["metrics"] = json.loads(self.object.metrics_json) if getattr(self.object, "metrics_json", None) else None
+
+        page_size = get_page_size(self.request)
+        analyses_qs = self.object.analyses.all().order_by("-id")
+
+        paginator = Paginator(analyses_qs, page_size)
+        page_number = self.request.GET.get("page", 1)
+        analyses_page = paginator.get_page(page_number)
+
+        context["analyses"] = analyses_page.object_list
+        context["page_obj"] = analyses_page
+        context["paginator"] = paginator
+        context["page_size"] = page_size
+        context["page_size_options"] = PAGE_SIZE_OPTIONS
+
+        # The graph intentionally uses ONLY the records visible on the
+        # current pagination page. This keeps the chart aligned with the
+        # table and avoids loading every analysis record for large batches.
+        chart_data = []
+        for analysis in analyses_page.object_list:
+            chart_data.append(
+                {
+                    "filename": analysis.filename or f"Clip {analysis.pk}",
+                    "tone": analysis.emotional_tone or "unknown",
+                    "confidence": float(analysis.confidence or 0),
+                    "intensity": analysis.emotional_intensity or "-",
+                    "noise": bool(analysis.background_noise_present),
+                    "noise_severity": analysis.background_noise_severity or "-",
+                    "quality": analysis.audio_quality or "-",
+                    "overlap": bool(analysis.speaker_overlap_present),
+                    "silence": bool(analysis.long_silence_present),
+                }
+            )
+
+        context["chart_data"] = chart_data
+        context["metrics"] = (
+            json.loads(self.object.metrics_json)
+            if getattr(self.object, "metrics_json", None)
+            else None
+        )
         return context
 
 
@@ -134,10 +208,16 @@ class ExportBatchResultsView(LoginRequiredMixin, View):
         if request.user.is_superuser:
             batch = get_object_or_404(BatchUpload, pk=pk)
         else:
-            batch = get_object_or_404(BatchUpload, pk=pk, user=request.user)
+            batch = get_object_or_404(
+                BatchUpload,
+                pk=pk,
+                user=request.user,
+            )
 
         response = HttpResponse(content_type="text/csv")
-        response["Content-Disposition"] = f'attachment; filename="batch_{batch.id}_results.csv"'
+        response["Content-Disposition"] = (
+            f'attachment; filename="batch_{batch.id}_results.csv"'
+        )
 
         writer = csv.writer(response)
         writer.writerow(["name", "result_json"])
