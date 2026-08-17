@@ -55,6 +55,8 @@ class LongRecorderBatchView(View):
                 return JsonResponse({"status": "success", "batch_id": batch.id})
 
             # 2. Upload and Convert Chunk
+            # Keep the chunk local for low-latency conversion. The finalized
+            # WAVs are persisted to MinIO by process_batch_upload_task.
             elif action == "upload_chunk":
                 batch_id = request.POST.get("batch_id")
                 chunk_index = request.POST.get("index")

@@ -29,7 +29,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from pydub import AudioSegment
 from .device_authentication import DeviceAuthentication
-from .models import BatchUpload, Device
+from .models import AudioAnalysis, BatchUpload, Device
 from .tasks import (
     process_batch_upload_task,
     process_audio_chunk_task,
@@ -104,16 +104,29 @@ class SessionChunkView(APIView):
         except (TypeError, ValueError):
             return Response({"error": "index must be an integer"}, status=status.HTTP_400_BAD_REQUEST)
 
-        chunk_dir = _chunk_dir(batch_id)
-        os.makedirs(chunk_dir, exist_ok=True)
+        filename = f"chunk_{chunk_index:04d}.wav"
 
-        wav_path = os.path.join(chunk_dir, f"chunk_{chunk_index:04d}.wav")
-
-        if os.path.exists(wav_path):
+        # A processed chunk may already have been removed from /tmp. Use the
+        # database as the durable idempotency check instead of relying on the
+        # temporary filesystem.
+        existing = AudioAnalysis.objects.filter(
+            batch=batch,
+            filename=filename,
+        ).first()
+        if existing and existing.audio_file:
             return Response(
-                {"status": "chunk_saved", "filename": os.path.basename(wav_path), "duplicate": True},
+                {
+                    "status": "chunk_saved",
+                    "filename": filename,
+                    "duplicate": True,
+                    "audio_file": existing.audio_file.url,
+                },
                 status=status.HTTP_200_OK,
             )
+
+        chunk_dir = _chunk_dir(batch_id)
+        os.makedirs(chunk_dir, exist_ok=True)
+        wav_path = os.path.join(chunk_dir, filename)
 
         raw_path = os.path.join(chunk_dir, f"temp_{chunk_index}_{uuid.uuid4().hex}.raw")
 
@@ -141,11 +154,10 @@ class SessionChunkView(APIView):
                 if os.path.exists(raw_path):
                     os.remove(raw_path)
 
-            filename = os.path.basename(wav_path)
-
             # Process this chunk immediately in Celery. The recording
             # session can continue uploading subsequent chunks while this
-            # one is being analyzed.
+            # one is being analyzed. Celery archives the WAV to MinIO before
+            # deleting this temporary local copy.
             process_audio_chunk_task.delay(
                 batch.id,
                 wav_path,
@@ -190,22 +202,9 @@ class SessionFinalizeView(APIView):
             )
 
         # Chunks are already processed individually as they arrive.
-        # Finalize only marks the live recording as finished; it must NOT
-        # enqueue process_batch_upload_task again, otherwise every chunk
-        # would be analyzed a second time.
-        chunk_dir = _chunk_dir(batch_id)
-
-        if os.path.exists(chunk_dir):
-            try:
-                for filename in os.listdir(chunk_dir):
-                    path = os.path.join(chunk_dir, filename)
-                    if os.path.isfile(path):
-                        os.remove(path)
-                os.rmdir(chunk_dir)
-            except OSError:
-                # A chunk may still be in use by a Celery worker. The worker
-                # owns cleanup of the individual WAV after analysis.
-                pass
+        # Do not delete the shared temporary directory here: Celery may still
+        # be processing a chunk. Each task deletes its own temporary WAV only
+        # after the permanent MinIO archive succeeds.
 
         batch.status = "completed"
         batch.save(update_fields=["status"])

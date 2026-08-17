@@ -2,6 +2,7 @@ import csv
 import os
 import json
 import tempfile
+import uuid
 
 from django.contrib.auth import login
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -88,16 +89,17 @@ class BatchUploadView(LoginRequiredMixin, View):
                 status=400,
             )
 
-        # Save the upload to a temp path on disk so the Celery worker
+        # Save the upload to a temporary shared path for low-latency handoff.
         # (which may run in a separate process/container) can read it by
         # filesystem path rather than via the in-request file handle.
         temp_dir = tempfile.gettempdir()
-        temp_zip_path = os.path.join(temp_dir, f"upload_{zip_file.name}")
+        temp_zip_path = os.path.join(temp_dir, f"upload_{uuid.uuid4().hex}_{zip_file.name}")
         with open(temp_zip_path, "wb+") as destination:
             for chunk in zip_file.chunks():
                 destination.write(chunk)
 
-        # Create the batch record up front with a "pending/processing" status,
+        # Create the batch record. Its zip_file FileField is stored permanently
+        # in MinIO by the configured default storage backend.
         # associated with the uploading user; re-open the temp file so the
         # archive is also retained via the model's zip_file field for later
         # reference.
