@@ -55,7 +55,7 @@ class SessionInitView(APIView):
     def post(self, request):
         _touch_device(request)
         title = request.data.get("title", "Device Recording")
-        device = Device.objects.filter(api_token=request.auth).first()
+        device = request.auth
 
         batch = BatchUpload.objects.create(
             user=request.user,
