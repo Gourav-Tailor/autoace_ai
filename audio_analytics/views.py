@@ -169,7 +169,16 @@ class BatchDetailView(LoginRequiredMixin, DetailView):
         page_number = self.request.GET.get("page", 1)
         analyses_page = paginator.get_page(page_number)
 
-        context["analyses"] = analyses_page.object_list
+        # Generate one browser-facing MinIO presigned URL per visible analysis.
+        analyses = list(analyses_page.object_list)
+        for analysis in analyses:
+            analysis.audio_playback_url = (
+                analysis.audio_file.url
+                if analysis.audio_file
+                else ""
+            )
+
+        context["analyses"] = analyses
         context["page_obj"] = analyses_page
         context["paginator"] = paginator
         context["page_size"] = page_size

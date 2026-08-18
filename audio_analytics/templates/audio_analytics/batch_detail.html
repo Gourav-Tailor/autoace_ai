@@ -161,6 +161,7 @@
                         <th>Overlap</th>
                         <th>Silence</th>
                         <th>Confidence</th>
+                        <th>Listen</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -181,10 +182,28 @@
                         <td>{{ analysis.speaker_overlap_present }}</td>
                         <td>{{ analysis.long_silence_present }}</td>
                         <td><strong>{{ analysis.confidence|default:"0.0" }}</strong></td>
+                        <td style="min-width: 240px;">
+                            {% if analysis.audio_playback_url %}
+                                <audio
+                                    controls
+                                    preload="none"
+                                    class="w-100"
+                                    aria-label="Play {{ analysis.filename }}"
+                                >
+                                    <source
+                                        src="{{ analysis.audio_playback_url }}"
+                                        type="audio/wav"
+                                    >
+                                    Your browser does not support audio playback.
+                                </audio>
+                            {% else %}
+                                <span class="text-muted small">Audio unavailable</span>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="9" class="text-center text-muted py-4">
+                        <td colspan="10" class="text-center text-muted py-4">
                             No individual file records processed.
                         </td>
                     </tr>

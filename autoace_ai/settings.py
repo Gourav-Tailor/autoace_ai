@@ -131,25 +131,50 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Permanent media storage: MinIO (S3-compatible).
-# Temporary processing files remain on the shared Docker /tmp volume.
+# Django/Celery use the internal Docker endpoint for fast storage operations.
+# Browsers/phones use the public endpoint only for presigned playback URLs.
+
 AWS_ACCESS_KEY_ID = os.getenv("MINIO_ROOT_USER", "minioadmin")
 AWS_SECRET_ACCESS_KEY = os.getenv("MINIO_ROOT_PASSWORD", "minioadmin")
-AWS_STORAGE_BUCKET_NAME = os.getenv("MINIO_BUCKET_NAME", "autoace-media")
-AWS_S3_ENDPOINT_URL = os.getenv("MINIO_ENDPOINT_URL", "http://localhost:9000")
-AWS_S3_REGION_NAME = os.getenv("MINIO_REGION", "us-east-1")
-AWS_S3_ADDRESSING_STYLE = os.getenv("MINIO_ADDRESSING_STYLE", "path")
+
+AWS_STORAGE_BUCKET_NAME = os.getenv(
+    "MINIO_BUCKET_NAME",
+    "autoace-media",
+)
+
+# INTERNAL endpoint — used for uploads, exists(), saves, etc.
+AWS_S3_ENDPOINT_URL = os.getenv(
+    "MINIO_ENDPOINT_URL",
+    "http://minio:9000",
+)
+
+# PUBLIC endpoint — used only when generating browser-accessible URLs.
+MINIO_PUBLIC_ENDPOINT_URL = os.getenv(
+    "MINIO_PUBLIC_ENDPOINT_URL",
+    "http://34.148.248.202:9000",
+)
+
+AWS_S3_REGION_NAME = os.getenv(
+    "MINIO_REGION",
+    "us-east-1",
+)
+
+AWS_S3_ADDRESSING_STYLE = os.getenv(
+    "MINIO_ADDRESSING_STYLE",
+    "path",
+)
+
 AWS_S3_SIGNATURE_VERSION = "s3v4"
 AWS_DEFAULT_ACL = None
 AWS_S3_FILE_OVERWRITE = False
 AWS_QUERYSTRING_AUTH = True
-AWS_QUERYSTRING_EXPIRE = int(os.getenv("MINIO_PRESIGNED_URL_EXPIRE", "3600"))
+AWS_QUERYSTRING_EXPIRE = int(
+    os.getenv("MINIO_PRESIGNED_URL_EXPIRE", "3600")
+)
 
 STORAGES = {
     "default": {
-        "BACKEND": "storages.backends.s3.S3Storage",
-    },
-    "staticfiles": {
-        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        "BACKEND": "audio_analytics.storage.MinIOStorage",
     },
 }
 
