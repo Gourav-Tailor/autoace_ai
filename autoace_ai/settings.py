@@ -176,6 +176,9 @@ STORAGES = {
     "default": {
         "BACKEND": "audio_analytics.storage.MinIOStorage",
     },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
 }
 
 # Kept for compatibility with existing code/templates. FileField.url is
