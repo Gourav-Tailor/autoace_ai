@@ -1,10 +1,13 @@
 import json
 import os
+
 import numpy as np
 from sklearn.metrics import confusion_matrix, f1_score
 
 
-def evaluate_predictions_against_ground_truth(predictions: list[dict], ground_truths: dict) -> dict:
+def evaluate_predictions_against_ground_truth(
+    predictions: list[dict], ground_truths: dict
+) -> dict:
     """Compares model predictions against ground truth extracted from labels.csv.
 
     Ground truth and prediction filenames are matched by their base name
@@ -21,7 +24,9 @@ def evaluate_predictions_against_ground_truth(predictions: list[dict], ground_tr
     for filename, gt_str in ground_truths.items():
         base_name = os.path.splitext(os.path.basename(filename))[0].lower()
         try:
-            normalized_gt[base_name] = json.loads(gt_str) if isinstance(gt_str, str) else gt_str
+            normalized_gt[base_name] = (
+                json.loads(gt_str) if isinstance(gt_str, str) else gt_str
+            )
         except (json.JSONDecodeError, TypeError):
             continue
 
@@ -41,7 +46,9 @@ def evaluate_predictions_against_ground_truth(predictions: list[dict], ground_tr
         gt_data = normalized_gt[base_name]
 
         # Tone tracking
-        y_true_tone.append(str(gt_data.get("emotional_tone", "neutral")).lower().strip())
+        y_true_tone.append(
+            str(gt_data.get("emotional_tone", "neutral")).lower().strip()
+        )
         y_pred_tone.append(str(pred.get("emotional_tone", "neutral")).lower().strip())
 
         # Background noise tracking
@@ -53,7 +60,9 @@ def evaluate_predictions_against_ground_truth(predictions: list[dict], ground_tr
 
     # Tone classification metrics
     labels = ["neutral", "satisfied", "frustrated", "upset", "distressed"]
-    tone_macro_f1 = f1_score(y_true_tone, y_pred_tone, labels=labels, average="macro", zero_division=0)
+    tone_macro_f1 = f1_score(
+        y_true_tone, y_pred_tone, labels=labels, average="macro", zero_division=0
+    )
     cm = confusion_matrix(y_true_tone, y_pred_tone, labels=labels)
 
     # Noise detection accuracy (as a percentage)
@@ -64,5 +73,5 @@ def evaluate_predictions_against_ground_truth(predictions: list[dict], ground_tr
         "noise_detection_accuracy": round(float(noise_acc), 2),
         "tone_confusion_matrix": cm.tolist(),
         "tone_labels": labels,
-        "sample_count": len(y_true_tone)
+        "sample_count": len(y_true_tone),
     }

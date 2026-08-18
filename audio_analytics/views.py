@@ -1,6 +1,6 @@
 import csv
-import os
 import json
+import os
 import tempfile
 import uuid
 
@@ -16,7 +16,6 @@ from django.views.generic import DetailView, ListView, TemplateView
 from .forms import SignUpForm
 from .models import AudioAnalysis, BatchUpload
 from .tasks import process_batch_upload_task
-
 
 PAGE_SIZE_OPTIONS = (10, 25, 50, 100)
 DEFAULT_PAGE_SIZE = 10
@@ -53,6 +52,7 @@ class SignUpView(View):
 class DashboardView(LoginRequiredMixin, TemplateView):
     """Main dashboard displaying system metrics and recent batch processing summary.
     Superusers see metrics/batches for everyone; regular users see only their own."""
+
     template_name = "audio_analytics/dashboard.html"
 
     def get_context_data(self, **kwargs):
@@ -93,7 +93,9 @@ class BatchUploadView(LoginRequiredMixin, View):
         # (which may run in a separate process/container) can read it by
         # filesystem path rather than via the in-request file handle.
         temp_dir = tempfile.gettempdir()
-        temp_zip_path = os.path.join(temp_dir, f"upload_{uuid.uuid4().hex}_{zip_file.name}")
+        temp_zip_path = os.path.join(
+            temp_dir, f"upload_{uuid.uuid4().hex}_{zip_file.name}"
+        )
         with open(temp_zip_path, "wb+") as destination:
             for chunk in zip_file.chunks():
                 destination.write(chunk)
@@ -173,9 +175,7 @@ class BatchDetailView(LoginRequiredMixin, DetailView):
         analyses = list(analyses_page.object_list)
         for analysis in analyses:
             analysis.audio_playback_url = (
-                analysis.audio_file.url
-                if analysis.audio_file
-                else ""
+                analysis.audio_file.url if analysis.audio_file else ""
             )
 
         context["analyses"] = analyses

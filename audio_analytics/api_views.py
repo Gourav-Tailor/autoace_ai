@@ -2,17 +2,20 @@
 
 import os
 import tempfile
-import zipfile
 import traceback
 import uuid
+import zipfile
+
 from django.http import JsonResponse
+from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
 from pydub import AudioSegment
+
 from .analyzer import analyze_audio_clip
 from .models import BatchUpload
 from .tasks import process_batch_upload_task
+
 
 @method_decorator(csrf_exempt, name="dispatch")
 class LiveDemoAnalysisView(View):
@@ -23,23 +26,30 @@ class LiveDemoAnalysisView(View):
 
         # Enforce maximum 10MB limit (~1-2 mins of audio)
         if audio_file.size > 10 * 1024 * 1024:
-            return JsonResponse({"error": "Audio file exceeds 1-minute max limit."}, status=400)
+            return JsonResponse(
+                {"error": "Audio file exceeds 1-minute max limit."}, status=400
+            )
 
         try:
             filename = audio_file.name or "demo_recording.webm"
             audio_bytes = audio_file.read()
-            
+
             # Analyze clip dynamically using your analyzer pipeline
             result = analyze_audio_clip(audio_bytes, filename)
             return JsonResponse({"success": True, "data": result})
         except Exception as e:
-            return JsonResponse({"error": f"Failed to analyze recording: {str(e)}"}, status=500)
+            return JsonResponse(
+                {"error": f"Failed to analyze recording: {str(e)}"}, status=500
+            )
 
 
 class LongRecorderBatchView(View):
     def post(self, request):
         if not request.user.is_authenticated:
-            return JsonResponse({"error": "User authentication required. Please log in first."}, status=401)
+            return JsonResponse(
+                {"error": "User authentication required. Please log in first."},
+                status=401,
+            )
 
         action = request.POST.get("action")
 
@@ -48,9 +58,7 @@ class LongRecorderBatchView(View):
             if action == "init":
                 title = request.POST.get("title", "Long Live Recording")
                 batch = BatchUpload.objects.create(
-                    user=request.user,
-                    name=f"{title} (Live Stream)",
-                    status="recording"
+                    user=request.user, name=f"{title} (Live Stream)", status="recording"
                 )
                 return JsonResponse({"status": "success", "batch_id": batch.id})
 
@@ -63,16 +71,22 @@ class LongRecorderBatchView(View):
                 audio_file = request.FILES.get("chunk_data")
 
                 if not batch_id or not audio_file:
-                    return JsonResponse({"error": "Missing batch_id or audio content"}, status=400)
+                    return JsonResponse(
+                        {"error": "Missing batch_id or audio content"}, status=400
+                    )
 
-                chunk_dir = os.path.join(tempfile.gettempdir(), f"batch_stream_{batch_id}")
+                chunk_dir = os.path.join(
+                    tempfile.gettempdir(), f"batch_stream_{batch_id}"
+                )
                 os.makedirs(chunk_dir, exist_ok=True)
 
                 # Unique raw filename per upload (not just per chunk_index) so two
                 # concurrent requests -- e.g. a duplicate POST from a network/proxy
                 # retry -- can never collide on the same temp path and delete each
                 # other's file mid-conversion.
-                raw_path = os.path.join(chunk_dir, f"temp_{chunk_index}_{uuid.uuid4().hex}.webm")
+                raw_path = os.path.join(
+                    chunk_dir, f"temp_{chunk_index}_{uuid.uuid4().hex}.webm"
+                )
                 wav_path = os.path.join(chunk_dir, f"chunk_{int(chunk_index):04d}.wav")
 
                 # Save raw browser chunk
@@ -82,7 +96,9 @@ class LongRecorderBatchView(View):
 
                 if not os.path.exists(raw_path) or os.path.getsize(raw_path) == 0:
                     return JsonResponse(
-                        {"error": f"Uploaded chunk {chunk_index} was empty or failed to save."},
+                        {
+                            "error": f"Uploaded chunk {chunk_index} was empty or failed to save."
+                        },
                         status=400,
                     )
 
@@ -99,7 +115,12 @@ class LongRecorderBatchView(View):
                     if os.path.exists(raw_path):
                         os.remove(raw_path)
 
-                return JsonResponse({"status": "chunk_saved", "filename": f"chunk_{int(chunk_index):04d}.wav"})
+                return JsonResponse(
+                    {
+                        "status": "chunk_saved",
+                        "filename": f"chunk_{int(chunk_index):04d}.wav",
+                    }
+                )
 
             # 3. Finalize Session & Trigger Async Task
             elif action == "finalize":
@@ -107,15 +128,26 @@ class LongRecorderBatchView(View):
                 if not batch_id:
                     return JsonResponse({"error": "Missing batch_id"}, status=400)
 
-                batch = BatchUpload.objects.filter(id=batch_id, user=request.user).first()
+                batch = BatchUpload.objects.filter(
+                    id=batch_id, user=request.user
+                ).first()
                 if not batch:
-                    return JsonResponse({"error": "Batch session not found"}, status=404)
+                    return JsonResponse(
+                        {"error": "Batch session not found"}, status=404
+                    )
 
-                chunk_dir = os.path.join(tempfile.gettempdir(), f"batch_stream_{batch_id}")
+                chunk_dir = os.path.join(
+                    tempfile.gettempdir(), f"batch_stream_{batch_id}"
+                )
                 if not os.path.exists(chunk_dir):
-                    return JsonResponse({"error": "No recorded audio chunks found on server"}, status=400)
+                    return JsonResponse(
+                        {"error": "No recorded audio chunks found on server"},
+                        status=400,
+                    )
 
-                zip_path = os.path.join(tempfile.gettempdir(), f"batch_{batch_id}_audio.zip")
+                zip_path = os.path.join(
+                    tempfile.gettempdir(), f"batch_{batch_id}_audio.zip"
+                )
                 with zipfile.ZipFile(zip_path, "w") as zipf:
                     for root, _, files in os.walk(chunk_dir):
                         for file in sorted(files):
@@ -133,14 +165,15 @@ class LongRecorderBatchView(View):
 
                 process_batch_upload_task.delay(batch.id, zip_path)
 
-                return JsonResponse({
-                    "status": "queued",
-                    "redirect_url": f"/batches/{batch.id}/"
-                })
+                return JsonResponse(
+                    {"status": "queued", "redirect_url": f"/batches/{batch.id}/"}
+                )
 
             return JsonResponse({"error": "Invalid action requested"}, status=400)
 
         except Exception as e:
             # Print exact stacktrace in server logs for easy debugging
             traceback.print_exc()
-            return JsonResponse({"error": f"Internal Server Error: {str(e)}"}, status=500)
+            return JsonResponse(
+                {"error": f"Internal Server Error: {str(e)}"}, status=500
+            )

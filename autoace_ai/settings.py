@@ -10,16 +10,15 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
-from pathlib import Path
 import os
-
+from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Security & Debug Configuration
-SECRET_KEY = os.environ.get('SECRET_KEY', 'default-unsafe-secret-key')
-DEBUG = os.environ.get('DEBUG', '0') == '1'
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+SECRET_KEY = os.environ.get("SECRET_KEY", "default-unsafe-secret-key")
+DEBUG = os.environ.get("DEBUG", "0") == "1"
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
 AUTH_USER_MODEL = "auth.User"
 # Application definition
@@ -80,15 +79,14 @@ WSGI_APPLICATION = "autoace_ai.wsgi.application"
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
 
-
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME'),
-        'USER': os.environ.get('DB_USER'),
-        'PASSWORD': os.environ.get('DB_PASSWORD'),
-        'HOST': os.environ.get('DB_HOST', 'db'),
-        'PORT': os.environ.get('DB_PORT', '5432'),
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.environ.get("DB_NAME"),
+        "USER": os.environ.get("DB_USER"),
+        "PASSWORD": os.environ.get("DB_PASSWORD"),
+        "HOST": os.environ.get("DB_HOST", "db"),
+        "PORT": os.environ.get("DB_PORT", "5432"),
     }
 }
 
@@ -127,8 +125,8 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
-STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Permanent media storage: MinIO (S3-compatible).
 # Django/Celery use the internal Docker endpoint for fast storage operations.
@@ -168,9 +166,7 @@ AWS_S3_SIGNATURE_VERSION = "s3v4"
 AWS_DEFAULT_ACL = None
 AWS_S3_FILE_OVERWRITE = False
 AWS_QUERYSTRING_AUTH = True
-AWS_QUERYSTRING_EXPIRE = int(
-    os.getenv("MINIO_PRESIGNED_URL_EXPIRE", "3600")
-)
+AWS_QUERYSTRING_EXPIRE = int(os.getenv("MINIO_PRESIGNED_URL_EXPIRE", "3600"))
 
 STORAGES = {
     "default": {
@@ -194,11 +190,11 @@ MAILERS = {
     },
 }
 
-LOGIN_URL = 'login'
-LOGIN_REDIRECT_URL = 'dashboard'
-LOGOUT_REDIRECT_URL = 'login'
+LOGIN_URL = "login"
+LOGIN_REDIRECT_URL = "dashboard"
+LOGOUT_REDIRECT_URL = "login"
 
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Set Hugging Face Token in environment
 HF_TOKEN = os.getenv("HF_TOKEN")

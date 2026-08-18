@@ -15,25 +15,22 @@ Auth: clients send `Authorization: Token <key>` on every request instead of
 relying on cookies/CSRF. Issue tokens with the `create_device_token`
 management command (see audio_analytics/management/commands/).
 """
+
 import os
 import tempfile
-import zipfile
 import traceback
 import uuid
 
 from django.utils import timezone
-from rest_framework.authentication import TokenAuthentication
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
 from pydub import AudioSegment
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
 from .device_authentication import DeviceAuthentication
-from .models import AudioAnalysis, BatchUpload, Device
-from .tasks import (
-    process_batch_upload_task,
-    process_audio_chunk_task,
-)
+from .models import AudioAnalysis, BatchUpload
+from .tasks import process_audio_chunk_task
 
 
 def _chunk_dir(batch_id):
@@ -90,19 +87,25 @@ class SessionChunkView(APIView):
 
         batch = BatchUpload.objects.filter(id=batch_id, user=request.user).first()
         if not batch:
-            return Response({"error": "Session not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Session not found"}, status=status.HTTP_404_NOT_FOUND
+            )
 
         chunk_index = request.data.get("index")
         audio_file = request.FILES.get("chunk_data")
         if chunk_index is None or not audio_file:
             return Response(
-                {"error": "Missing index or chunk_data"}, status=status.HTTP_400_BAD_REQUEST
+                {"error": "Missing index or chunk_data"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
             chunk_index = int(chunk_index)
         except (TypeError, ValueError):
-            return Response({"error": "index must be an integer"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "index must be an integer"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         filename = f"chunk_{chunk_index:04d}.wav"
 
@@ -137,7 +140,9 @@ class SessionChunkView(APIView):
 
             if not os.path.exists(raw_path) or os.path.getsize(raw_path) == 0:
                 return Response(
-                    {"error": f"Uploaded chunk {chunk_index} was empty or failed to save."},
+                    {
+                        "error": f"Uploaded chunk {chunk_index} was empty or failed to save."
+                    },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -234,8 +239,13 @@ class SessionHeartbeatView(APIView):
         _touch_device(request)
         batch = BatchUpload.objects.filter(id=batch_id, user=request.user).first()
         if not batch:
-            return Response({"error": "Session not found"}, status=status.HTTP_404_NOT_FOUND)
-        return Response({"status": "alive", "batch_status": batch.status}, status=status.HTTP_200_OK)
+            return Response(
+                {"error": "Session not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+        return Response(
+            {"status": "alive", "batch_status": batch.status}, status=status.HTTP_200_OK
+        )
+
 
 class LatestDeviceAnalysisView(APIView):
     """
@@ -257,8 +267,7 @@ class LatestDeviceAnalysisView(APIView):
 
         # Most recent batch belonging to this authenticated device.
         batch = (
-            BatchUpload.objects
-            .filter(
+            BatchUpload.objects.filter(
                 user=request.user,
                 device=device,
             )
@@ -279,8 +288,7 @@ class LatestDeviceAnalysisView(APIView):
 
         # Latest successfully analyzed chunk for that batch.
         analysis = (
-            AudioAnalysis.objects
-            .filter(
+            AudioAnalysis.objects.filter(
                 batch=batch,
                 status="success",
             )
@@ -339,11 +347,15 @@ class LatestDeviceAnalysisView(APIView):
             if hasattr(analysis, field):
                 value = getattr(analysis, field)
 
-                if field in {
-                    "background_noise_present",
-                    "speaker_overlap_present",
-                    "long_silence_present",
-                } and value is not None:
+                if (
+                    field
+                    in {
+                        "background_noise_present",
+                        "speaker_overlap_present",
+                        "long_silence_present",
+                    }
+                    and value is not None
+                ):
                     value = bool(value)
 
                 if field == "confidence" and value is not None:

@@ -6,7 +6,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("audio_analytics", "0002_batchupload_metrics_json"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),

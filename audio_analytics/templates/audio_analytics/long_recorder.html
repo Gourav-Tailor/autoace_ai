@@ -48,7 +48,7 @@ const processingAlert = document.getElementById('processingAlert');
 
 // Helper to handle CSRF token
 function getCSRFToken() {
-    return document.querySelector('[name=csrfmiddlewaretoken]') ? 
+    return document.querySelector('[name=csrfmiddlewaretoken]') ?
            document.querySelector('[name=csrfmiddlewaretoken]').value : '{{ csrf_token }}';
 }
 

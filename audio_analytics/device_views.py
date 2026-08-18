@@ -5,9 +5,10 @@ session auth (@login_required) -- this is a page a logged-in user visits
 in their browser, not part of the token-authenticated device API in
 api_v1.py.
 """
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render, redirect, get_object_or_404
+from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from .models import Device
@@ -23,7 +24,10 @@ def device_tokens_view(request):
             messages.error(request, f"You already have a device named '{device_name}'.")
         else:
             device = Device.objects.create(user=request.user, name=device_name)
-            messages.success(request, f"Created '{device.name}'. Copy its token now -- it won't be shown in full again.")
+            messages.success(
+                request,
+                f"Created '{device.name}'. Copy its token now -- it won't be shown in full again.",
+            )
         return redirect("device_tokens")
 
     devices = Device.objects.filter(user=request.user).order_by("-created_at")

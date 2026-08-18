@@ -4,30 +4,23 @@ from django.urls import include, path
 
 from audio_analytics import api_v1, device_views
 
-
 urlpatterns = [
     # Admin Interface
     path("admin/", admin.site.urls),
-
     # Root URL (http://localhost:8000/) shows Login Page
     path(
         "",
-        auth_views.LoginView.as_view(
-            template_name="audio_analytics/login.html"
-        ),
+        auth_views.LoginView.as_view(template_name="audio_analytics/login.html"),
         name="login",
     ),
-
     # Logout URL
     path(
         "logout/",
         auth_views.LogoutView.as_view(next_page="login"),
         name="logout",
     ),
-
     # App Routes (Dashboard, Upload, Batches)
     path("", include("audio_analytics.urls")),
-
     # Device / ESP32 / mobile APIs
     path(
         "api/v1/sessions/",
@@ -49,7 +42,6 @@ urlpatterns = [
         api_v1.SessionHeartbeatView.as_view(),
         name="api_v1_session_heartbeat",
     ),
-
     # Mobile: latest analyzed chunk for the authenticated device's
     # most recent recording batch.
     path(
@@ -57,7 +49,6 @@ urlpatterns = [
         api_v1.LatestDeviceAnalysisView.as_view(),
         name="api_v1_latest_analysis",
     ),
-
     # Browser pages for managing device tokens
     path(
         "devices/",

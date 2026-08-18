@@ -17,11 +17,19 @@ _emotion_model = None
 # Includes both the short SUPERB codes (neu/hap/sad/ang/fea) and their
 # full-word equivalents, plus the enum values themselves as a passthrough.
 EMOTION_MAP = {
-    "neu": "neutral", "neutral": "neutral",
-    "hap": "satisfied", "happy": "satisfied", "satisfied": "satisfied",
-    "ang": "upset", "angry": "upset", "upset": "upset",
-    "sad": "frustrated", "frustrated": "frustrated",
-    "fea": "distressed", "fear": "distressed", "distressed": "distressed",
+    "neu": "neutral",
+    "neutral": "neutral",
+    "hap": "satisfied",
+    "happy": "satisfied",
+    "satisfied": "satisfied",
+    "ang": "upset",
+    "angry": "upset",
+    "upset": "upset",
+    "sad": "frustrated",
+    "frustrated": "frustrated",
+    "fea": "distressed",
+    "fear": "distressed",
+    "distressed": "distressed",
 }
 
 
@@ -29,16 +37,15 @@ def get_models():
     global _feature_extractor, _emotion_model
     if _feature_extractor is None or _emotion_model is None:
         token = os.getenv("HF_TOKEN") or None
-        
+
         _feature_extractor = AutoFeatureExtractor.from_pretrained(
-            MODEL_NAME, 
-            token=token
+            MODEL_NAME, token=token
         )
         _emotion_model = AutoModelForAudioClassification.from_pretrained(
-            MODEL_NAME, 
-            token=token
+            MODEL_NAME, token=token
         )
     return _feature_extractor, _emotion_model
+
 
 def _classify_emotion_with_rules(
     probs: np.ndarray,
@@ -113,7 +120,11 @@ def predict_emotion(y: np.ndarray, sr: int) -> tuple[str, str, float]:
 
         CHUNK_SECONDS = 20
         chunk_len = CHUNK_SECONDS * sr
-        chunks = [y[i:i + chunk_len] for i in range(0, len(y), chunk_len)] if len(y) > 0 else [y]
+        chunks = (
+            [y[i : i + chunk_len] for i in range(0, len(y), chunk_len)]
+            if len(y) > 0
+            else [y]
+        )
         # Drop a trailing sliver too short to carry meaningful signal (e.g.
         # the last 0.3s of a chunked file), unless it's the only chunk we have.
         min_chunk_len = int(0.5 * sr)
@@ -122,7 +133,9 @@ def predict_emotion(y: np.ndarray, sr: int) -> tuple[str, str, float]:
 
         chunk_probs = []
         for chunk in chunks:
-            inputs = feature_extractor(chunk, sampling_rate=sr, return_tensors="pt", padding=True)
+            inputs = feature_extractor(
+                chunk, sampling_rate=sr, return_tensors="pt", padding=True
+            )
             with torch.no_grad():
                 logits = emotion_model(**inputs).logits
             chunk_probs.append(torch.nn.functional.softmax(logits, dim=-1)[0].numpy())
@@ -136,7 +149,9 @@ def predict_emotion(y: np.ndarray, sr: int) -> tuple[str, str, float]:
         mean_rms = float(np.mean(librosa.feature.rms(y=y)[0]))
         zcr = float(np.mean(librosa.feature.zero_crossing_rate(y)))
 
-        emotional_tone, confidence = _classify_emotion_with_rules(probabilities, mean_rms, zcr)
+        emotional_tone, confidence = _classify_emotion_with_rules(
+            probabilities, mean_rms, zcr
+        )
         emotional_intensity = _intensity_from_confidence(confidence)
 
         return emotional_tone, emotional_intensity, confidence
@@ -144,6 +159,7 @@ def predict_emotion(y: np.ndarray, sr: int) -> tuple[str, str, float]:
     except Exception:
         # Fallback in case of inference issues
         import traceback
+
         print("=== predict_emotion failed, falling back to neutral/low/0.50 ===")
         traceback.print_exc()
         return "neutral", "low", 0.50
@@ -166,7 +182,7 @@ def _analyze_acoustic_quality(y: np.ndarray, sr: int) -> dict:
     acoustic heuristics only live in one place.
     """
     rms = librosa.feature.rms(y=y)[0]
-    duration = len(y) / sr
+    # duration = len(y) / sr
 
     non_silent = librosa.effects.split(y, top_db=25)
 
@@ -195,7 +211,9 @@ def _analyze_acoustic_quality(y: np.ndarray, sr: int) -> dict:
         # stretches, dragging the average up. Weighting by actual sample
         # count fixes that without touching any threshold.
         gap_samples = np.concatenate([y[s:e] for s, e in gap_bounds if e > s])
-        gap_rms = float(np.sqrt(np.mean(gap_samples ** 2))) if len(gap_samples) > 0 else 0.0
+        gap_rms = (
+            float(np.sqrt(np.mean(gap_samples**2))) if len(gap_samples) > 0 else 0.0
+        )
     else:
         # No detected gaps at all (continuous speech) -- fall back to the
         # quietest 10th percentile as the best available noise-floor proxy.
@@ -222,7 +240,13 @@ def _analyze_acoustic_quality(y: np.ndarray, sr: int) -> dict:
         bg_severity = "low"
 
     spectral_centroid = float(np.mean(librosa.feature.spectral_centroid(y=y, sr=sr)))
-    bg_type = "" if not bg_noise_present else ("office chatter / static" if spectral_centroid > 2500 else "background hum")
+    bg_type = (
+        ""
+        if not bg_noise_present
+        else (
+            "office chatter / static" if spectral_centroid > 2500 else "background hum"
+        )
+    )
 
     # Audio Quality is recording clarity/fidelity -- clipping, garbling,
     # overall signal strength -- and is a separate axis from whether
@@ -234,7 +258,9 @@ def _analyze_acoustic_quality(y: np.ndarray, sr: int) -> dict:
     # whatever is happening in the background during pauses.
     noise_floor_pctile = float(np.percentile(rms, 10))
     signal_peak_pctile = float(np.percentile(rms, 95))
-    dynamic_range_db = 20 * np.log10((signal_peak_pctile + 1e-6) / (noise_floor_pctile + 1e-6))
+    dynamic_range_db = 20 * np.log10(
+        (signal_peak_pctile + 1e-6) / (noise_floor_pctile + 1e-6)
+    )
 
     # Dropped the raw max_amplitude > 0.99 clipping check -- lossy codecs
     # (Opus/OGG) routinely produce brief inter-sample overshoot slightly
@@ -269,7 +295,8 @@ def _analyze_acoustic_quality(y: np.ndarray, sr: int) -> dict:
     # same underlying condition.
     LONG_SILENCE_THRESHOLD_S = 4.0
     true_silence_gap_lengths = [
-        (e - s) / sr for s, e in gap_bounds
+        (e - s) / sr
+        for s, e in gap_bounds
         if float(np.sqrt(np.mean(y[s:e] ** 2))) <= TRUE_SILENCE_FLOOR
     ]
     longest_true_silence_s = max(true_silence_gap_lengths, default=0.0)
@@ -281,7 +308,10 @@ def _analyze_acoustic_quality(y: np.ndarray, sr: int) -> dict:
     # person talking loudly." Left conservative (mostly False) rather than
     # fit to match the 3 known examples, since that would be fitting noise,
     # not signal, and 2 data points isn't enough to trust a new threshold.
-    speaker_overlap = bool(speech_rms > 0.15 and float(np.mean(librosa.feature.zero_crossing_rate(y))) > 0.12)
+    speaker_overlap = bool(
+        speech_rms > 0.15
+        and float(np.mean(librosa.feature.zero_crossing_rate(y))) > 0.12
+    )
 
     return {
         "background_noise_present": bg_noise_present,
@@ -317,11 +347,14 @@ def analyze_audio_quality_and_noise(file_path: str) -> dict:
             "emotional_tone": emotional_tone,
             "emotional_intensity": emotional_intensity,
             **acoustic,
-            "confidence": round((emotion_confidence + min(max(snr_db / 30.0, 0.4), 1.0)) / 2, 2)
+            "confidence": round(
+                (emotion_confidence + min(max(snr_db / 30.0, 0.4), 1.0)) / 2, 2
+            ),
         }
 
     except Exception as e:
         import traceback
+
         print("=== analyze_audio_quality_and_noise failed ===")
         traceback.print_exc()
         return {"error": str(e)}
@@ -369,10 +402,14 @@ def analyze_audio_clip(audio_bytes: bytes, filename: str) -> dict:
         rms = librosa.feature.rms(y=audio_array)[0]
         mean_rms = float(np.mean(rms)) if len(rms) > 0 else 0.0
         zcr = float(np.mean(librosa.feature.zero_crossing_rate(audio_array)))
-        spectral_centroid = float(np.mean(librosa.feature.spectral_centroid(y=audio_array, sr=16000)))
+        spectral_centroid = float(
+            np.mean(librosa.feature.spectral_centroid(y=audio_array, sr=16000))
+        )
 
         # Wav2Vec2 Inference
-        inputs = feature_extractor(audio_array, sampling_rate=16000, return_tensors="pt", padding=True)
+        inputs = feature_extractor(
+            audio_array, sampling_rate=16000, return_tensors="pt", padding=True
+        )
         with torch.no_grad():
             logits = emotion_model(**inputs).logits[0]
             probs = torch.softmax(logits, dim=-1)
@@ -387,7 +424,9 @@ def analyze_audio_clip(audio_bytes: bytes, filename: str) -> dict:
         background_noise_present = bool(mean_rms > 0.025 or zcr > 0.09)
         if background_noise_present:
             background_noise_severity = "low" if mean_rms < 0.06 else "medium"
-            background_noise_type = "office chatter" if spectral_centroid > 2200 else "background hum"
+            background_noise_type = (
+                "office chatter" if spectral_centroid > 2200 else "background hum"
+            )
         else:
             background_noise_severity = "none"
             background_noise_type = ""
@@ -403,24 +442,35 @@ def analyze_audio_clip(audio_bytes: bytes, filename: str) -> dict:
         # Silence Check
         non_silent = librosa.effects.split(audio_array, top_db=25)
         total_dur = len(audio_array) / 16000.0
-        active_dur = sum((e - s) for s, e in non_silent) / 16000.0 if len(non_silent) > 0 else total_dur
+        active_dur = (
+            sum((e - s) for s, e in non_silent) / 16000.0
+            if len(non_silent) > 0
+            else total_dur
+        )
         long_silence_present = bool((total_dur - active_dur) > 2.5)
 
         return {
             "filename": filename,
             "emotional_tone": emotional_tone,
-            "emotional_intensity": "high" if confidence > 0.80 else ("medium" if confidence > 0.50 else "low"),
+            "emotional_intensity": (
+                "high"
+                if confidence > 0.80
+                else ("medium" if confidence > 0.50 else "low")
+            ),
             "background_noise_present": background_noise_present,
             "background_noise_type": background_noise_type,
             "background_noise_severity": background_noise_severity,
             "audio_quality": audio_quality,
             "speaker_overlap_present": False,
             "long_silence_present": long_silence_present,
-            "confidence": round(confidence, 2)
+            "confidence": round(confidence, 2),
         }
 
     except Exception as e:
         import traceback
-        print("=== analyze_audio_clip failed (this is what /api/demo-analyze/ hits) ===")
+
+        print(
+            "=== analyze_audio_clip failed (this is what /api/demo-analyze/ hits) ==="
+        )
         traceback.print_exc()
         return {"error": str(e)}

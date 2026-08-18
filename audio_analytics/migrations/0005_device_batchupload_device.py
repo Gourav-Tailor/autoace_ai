@@ -6,7 +6,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("audio_analytics", "0004_batchupload_name"),
         ("authtoken", "0004_alter_tokenproxy_options"),

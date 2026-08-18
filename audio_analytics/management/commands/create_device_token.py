@@ -14,8 +14,9 @@ can run this as many times as you have devices.
 Prints the key the device/app should send as:
     Authorization: Token <key>
 """
-from django.core.management.base import BaseCommand, CommandError
+
 from django.contrib.auth import get_user_model
+from django.core.management.base import BaseCommand, CommandError
 
 from audio_analytics.models import Device
 
@@ -36,9 +37,11 @@ class Command(BaseCommand):
 
         device = Device.objects.create(user=user, name=options["device_name"])
 
-        self.stdout.write(self.style.SUCCESS(
-            f"Created device '{device.name}' for user '{user.username}'.\n"
-            f"API Token: {device.key}\n\n"
-            f"Have the device send this header on every request:\n"
-            f"  Authorization: Token {device.key}"
-        ))
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Created device '{device.name}' for user '{user.username}'.\n"
+                f"API Token: {device.key}\n\n"
+                f"Have the device send this header on every request:\n"
+                f"  Authorization: Token {device.key}"
+            )
+        )

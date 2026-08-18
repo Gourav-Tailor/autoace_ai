@@ -8,14 +8,16 @@ from celery import shared_task
 from django.core.files.base import ContentFile
 from django.utils.text import get_valid_filename
 
-from .models import BatchUpload, AudioAnalysis
 from .analyzer import analyze_audio_clip
 from .evaluator import evaluate_predictions_against_ground_truth
+from .models import AudioAnalysis, BatchUpload
 
 
 def _archive_audio_to_minio(analysis, audio_data, filename, batch_id):
     """Persist an analyzed audio file through Django's MinIO storage backend."""
-    safe_name = get_valid_filename(os.path.basename(filename)) or f"audio_{analysis.pk}.wav"
+    safe_name = (
+        get_valid_filename(os.path.basename(filename)) or f"audio_{analysis.pk}.wav"
+    )
     storage_name = f"recordings/batches/{batch_id}/audio/{analysis.pk}_{safe_name}"
     analysis.audio_file.save(storage_name, ContentFile(audio_data), save=True)
     return analysis.audio_file.name
@@ -39,7 +41,6 @@ def _remove_temp_file(path):
 
 
 @shared_task
-
 def process_audio_chunk_task(batch_id, wav_path, filename):
     """
     Analyze one live audio chunk from the shared temporary filesystem.
@@ -130,7 +131,6 @@ def process_audio_chunk_task(batch_id, wav_path, filename):
 
 
 @shared_task
-
 def process_batch_upload_task(batch_id, zip_file_path):
     """Process a temporary ZIP while retaining the uploaded audio in MinIO."""
     batch = None
@@ -147,7 +147,8 @@ def process_batch_upload_task(batch_id, zip_file_path):
 
             csv_filename = next(
                 (
-                    f for f in file_list
+                    f
+                    for f in file_list
                     if f.lower().endswith("labels.csv")
                     or f.lower().endswith("manifest.csv")
                 ),
@@ -165,13 +166,14 @@ def process_batch_upload_task(batch_id, zip_file_path):
                             ground_truths[filename] = gt_json
 
             audio_members = [
-                m for m in archive.infolist()
+                m
+                for m in archive.infolist()
                 if not m.is_dir()
                 and not m.filename.startswith("__MACOSX")
                 and "/." not in m.filename
-                and os.path.basename(m.filename).lower().endswith(
-                    (".wav", ".mp3", ".m4a", ".flac", ".ogg")
-                )
+                and os.path.basename(m.filename)
+                .lower()
+                .endswith((".wav", ".mp3", ".m4a", ".flac", ".ogg"))
             ]
             batch.total_files = len(audio_members)
             batch.processed_files = 0
