@@ -1,14 +1,21 @@
-from urllib.parse import urlparse
-
 import boto3
+from botocore.config import Config
 from django.conf import settings
 from storages.backends.s3 import S3Storage
 
 
 class MinIOStorage(S3Storage):
     """
-    Use the internal Docker MinIO endpoint for uploads/downloads,
-    but generate presigned URLs against the public MinIO endpoint.
+    MinIO storage backend.
+
+    Internal Docker endpoint:
+        http://minio:9000
+
+    Public endpoint for browser playback:
+        http://34.148.248.202:9000
+
+    Uploads/storage operations continue using the internal endpoint.
+    Presigned playback URLs are generated against the public endpoint.
     """
 
     def url(self, name, parameters=None, expire=None, http_method=None):
@@ -21,7 +28,12 @@ class MinIOStorage(S3Storage):
             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
             region_name=settings.AWS_S3_REGION_NAME,
-            config=self.connection.meta.config,
+            config=Config(
+                signature_version="s3v4",
+                s3={
+                    "addressing_style": settings.AWS_S3_ADDRESSING_STYLE,
+                },
+            ),
         )
 
         params = {
@@ -36,5 +48,5 @@ class MinIOStorage(S3Storage):
             "get_object",
             Params=params,
             ExpiresIn=expire,
-            HttpMethod=http_method,
+            HttpMethod=http_method or "GET",
         )
