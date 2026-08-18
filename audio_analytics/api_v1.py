@@ -236,3 +236,122 @@ class SessionHeartbeatView(APIView):
         if not batch:
             return Response({"error": "Session not found"}, status=status.HTTP_404_NOT_FOUND)
         return Response({"status": "alive", "batch_status": batch.status}, status=status.HTTP_200_OK)
+
+class LatestDeviceAnalysisView(APIView):
+    """
+    GET /api/v1/latest-analysis/
+
+    Returns the latest successfully analyzed chunk from the authenticated
+    device's most recently processed recording batch.
+
+    No batch_id, after_id, or limit is required. The device token identifies
+    the device and the server determines the most recent batch automatically.
+    """
+
+    authentication_classes = [DeviceAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        _touch_device(request)
+        device = request.auth
+
+        # Most recent batch belonging to this authenticated device.
+        batch = (
+            BatchUpload.objects
+            .filter(
+                user=request.user,
+                device=device,
+            )
+            .order_by("-id")
+            .first()
+        )
+
+        if not batch:
+            return Response(
+                {
+                    "status": "no_recording",
+                    "batch_id": None,
+                    "batch_status": None,
+                    "analysis": None,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        # Latest successfully analyzed chunk for that batch.
+        analysis = (
+            AudioAnalysis.objects
+            .filter(
+                batch=batch,
+                status="success",
+            )
+            .order_by("-id")
+            .first()
+        )
+
+        if not analysis:
+            return Response(
+                {
+                    "status": "processing",
+                    "batch_id": batch.id,
+                    "batch_status": batch.status,
+                    "analysis": None,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        return Response(
+            {
+                "status": "success",
+                "batch_id": batch.id,
+                "batch_status": batch.status,
+                "analysis": self._serialize_analysis(analysis),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @staticmethod
+    def _serialize_analysis(analysis):
+        data = {
+            "id": analysis.id,
+            "batch_id": analysis.batch_id,
+            "filename": analysis.filename,
+            "status": analysis.status,
+            "created_at": (
+                analysis.created_at.isoformat()
+                if getattr(analysis, "created_at", None)
+                else None
+            ),
+        }
+
+        optional_fields = [
+            "emotional_tone",
+            "emotional_intensity",
+            "background_noise_present",
+            "background_noise_type",
+            "background_noise_severity",
+            "audio_quality",
+            "speaker_overlap_present",
+            "long_silence_present",
+            "confidence",
+        ]
+
+        for field in optional_fields:
+            if hasattr(analysis, field):
+                value = getattr(analysis, field)
+
+                if field in {
+                    "background_noise_present",
+                    "speaker_overlap_present",
+                    "long_silence_present",
+                } and value is not None:
+                    value = bool(value)
+
+                if field == "confidence" and value is not None:
+                    try:
+                        value = float(value)
+                    except (TypeError, ValueError):
+                        pass
+
+                data[field] = value
+
+        return data
