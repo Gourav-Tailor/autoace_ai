@@ -154,3 +154,30 @@ class AudioAnalysis(models.Model):
 
     def __str__(self):
         return f"{self.filename} ({self.status})"
+
+
+class MobileAuthToken(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="mobile_auth_tokens",
+    )
+    token = models.CharField(max_length=64, unique=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked = models.BooleanField(default=False)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["token", "revoked"]),
+            models.Index(fields=["user", "revoked"]),
+        ]
+
+    @classmethod
+    def issue(cls, user):
+        token = secrets.token_urlsafe(48)
+        return cls.objects.create(user=user, token=token)
+
+    def __str__(self):
+        return f"Mobile token for {self.user.username}"

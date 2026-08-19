@@ -2,6 +2,12 @@ from django.urls import path
 from django.views.generic import TemplateView
 
 from .api_views import LiveDemoAnalysisView, LongRecorderBatchView
+from .mobile_api import (
+    MobileDeviceLatestAnalysisView,
+    MobileDevicesView,
+    MobileLoginView,
+    MobileLogoutView,
+)
 from .views import (
     BatchDetailView,
     BatchListView,
@@ -36,5 +42,26 @@ urlpatterns = [
     ),
     path(
         "api/long-recorder/", LongRecorderBatchView.as_view(), name="long_recorder_api"
+    ),
+    # Mobile application APIs
+    path(
+        "api/v1/mobile/login/",
+        MobileLoginView.as_view(),
+        name="mobile_login",
+    ),
+    path(
+        "api/v1/mobile/logout/",
+        MobileLogoutView.as_view(),
+        name="mobile_logout",
+    ),
+    path(
+        "api/v1/mobile/devices/",
+        MobileDevicesView.as_view(),
+        name="mobile_devices",
+    ),
+    path(
+        "api/v1/mobile/devices/<int:device_id>/latest-analysis/",
+        MobileDeviceLatestAnalysisView.as_view(),
+        name="mobile_device_latest_analysis",
     ),
 ]
