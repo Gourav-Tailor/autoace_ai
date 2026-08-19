@@ -1,10 +1,11 @@
 from django.contrib.auth import authenticate
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .mobile_authentication import MobileBearerAuthentication
 from .models import AudioAnalysis, Device, MobileAuthToken
 
 
@@ -16,37 +17,8 @@ def _get_token(request):
     return token.strip()
 
 
-def _authenticate_mobile_request(request):
-    raw_token = _get_token(request)
-    if not raw_token:
-        return None, None
-
-    auth_token = (
-        MobileAuthToken.objects.select_related("user")
-        .filter(token=raw_token, revoked=False)
-        .first()
-    )
-    if not auth_token:
-        return None, None
-
-    auth_token.last_used_at = timezone.now()
-    auth_token.save(update_fields=["last_used_at"])
-    return auth_token.user, auth_token
-
-
 class MobileLoginView(APIView):
-    """
-    POST /api/v1/mobile/login/
-
-    Body:
-    {
-        "username": "...",
-        "password": "..."
-    }
-
-    Returns a mobile bearer token and the user's devices.
-    """
-
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -89,70 +61,47 @@ class MobileLoginView(APIView):
 
 
 class MobileLogoutView(APIView):
-    """
-    POST /api/v1/mobile/logout/
-    """
-
-    permission_classes = [AllowAny]
+    authentication_classes = [MobileBearerAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        raw_token = _get_token(request)
-        if raw_token:
-            MobileAuthToken.objects.filter(
-                token=raw_token,
-                revoked=False,
-            ).update(revoked=True, revoked_at=timezone.now())
+        MobileAuthToken.objects.filter(
+            user=request.user,
+            revoked=False,
+        ).update(
+            revoked=True,
+            revoked_at=timezone.now(),
+        )
 
-        return Response({"success": True}, status=status.HTTP_200_OK)
+        return Response({"success": True})
 
 
 class MobileDevicesView(APIView):
-    """
-    GET /api/v1/mobile/devices/
-    """
-
-    permission_classes = [AllowAny]
+    authentication_classes = [MobileBearerAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user, _ = _authenticate_mobile_request(request)
-        if user is None:
-            return Response(
-                {
-                    "detail": "Authentication credentials were not provided or are invalid."
-                },
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-
-        devices = Device.objects.filter(user=user).order_by("-created_at")
+        devices = Device.objects.filter(user=request.user).order_by("-created_at")
 
         return Response(
             {
                 "devices": [
                     _serialize_device(device, include_key=False) for device in devices
                 ]
-            },
-            status=status.HTTP_200_OK,
+            }
         )
 
 
 class MobileDeviceLatestAnalysisView(APIView):
-    """
-    GET /api/v1/mobile/devices/<device_id>/latest-analysis/
-    """
-
-    permission_classes = [AllowAny]
+    authentication_classes = [MobileBearerAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, device_id):
-        user, _ = _authenticate_mobile_request(request)
-        if user is None:
-            return Response(
-                {
-                    "detail": "Authentication credentials were not provided or are invalid."
-                },
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
+        device = Device.objects.filter(
+            id=device_id,
+            user=request.user,
+        ).first()
 
-        device = Device.objects.filter(id=device_id, user=user).first()
         if device is None:
             return Response(
                 {"detail": "Device not found."},
