@@ -1,0 +1,233 @@
+{% extends 'audio_analytics/base.html' %}
+{% block title %}AudoAck - AI Audio Analytics{% endblock %}
+{% block content %}
+<style>
+  .aa-page { background:#f8fafc; }
+  .aa-hero {
+    background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 100%);
+    color:#fff;
+    border-radius:28px;
+    overflow:hidden;
+  }
+  .aa-pill {
+    display:inline-flex;
+    align-items:center;
+    gap:.45rem;
+    padding:.4rem .75rem;
+    border:1px solid rgba(255,255,255,.2);
+    border-radius:999px;
+    background:rgba(255,255,255,.08);
+    font-size:.85rem;
+  }
+  .aa-card {
+    height:100%;
+    border:1px solid #e2e8f0;
+    border-radius:20px;
+    background:#fff;
+  }
+  .aa-icon {
+    width:48px;
+    height:48px;
+    border-radius:14px;
+    background:#eff6ff;
+    color:#2563eb;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:22px;
+  }
+  .aa-check { color:#16a34a; font-weight:700; }
+  .aa-section { scroll-margin-top:2rem; }
+  .aa-footer-link { color:#475569; text-decoration:none; }
+  .aa-footer-link:hover { color:#1d4ed8; }
+</style>
+
+<div class="aa-page">
+  <div class="container py-4 py-lg-5" style="max-width:1120px">
+
+    <section class="aa-hero p-4 p-lg-5 mb-5">
+      <div class="row align-items-center g-4">
+        <div class="col-lg-8">
+          <div class="aa-pill mb-3">🎙️ AudoAck · Audio Analytics</div>
+          <h1 class="display-5 fw-bold mb-3">
+            Record audio. Analyze it. Review the results.
+          </h1>
+          <p class="lead text-white-50 mb-0">
+            AudoAck is an Android app for recording short audio segments and
+            reviewing AI-assisted audio analysis results associated with your devices.
+          </p>
+
+          <div class="d-flex flex-wrap gap-2 mt-4">
+            <a href="{% url 'public_demo' %}" class="btn btn-light btn-lg">
+              Try Live Analysis
+            </a>
+            <a href="{% url 'privacy_policy' %}" class="btn btn-outline-light btn-lg">
+              Privacy & Data
+            </a>
+          </div>
+        </div>
+
+        <div class="col-lg-4">
+          <div class="bg-white bg-opacity-10 rounded-4 p-4 border border-light border-opacity-25">
+            <div class="small text-white-50 mb-1">AudoAck for Android</div>
+            <div class="h4 fw-bold mb-3">What you can do</div>
+            <div class="small d-grid gap-2">
+              <div><span class="aa-check">✓</span> Sign in securely</div>
+              <div><span class="aa-check">✓</span> View connected devices</div>
+              <div><span class="aa-check">✓</span> Record audio</div>
+              <div><span class="aa-check">✓</span> Upload audio for analysis</div>
+              <div><span class="aa-check">✓</span> Review latest analysis results</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="aa-section mb-5" id="how-it-works">
+      <div class="text-center mb-4">
+        <h2 class="fw-bold">How AudoAck works</h2>
+        <p class="text-muted mb-0">
+          A simple workflow from audio capture to analysis results.
+        </p>
+      </div>
+
+      <div class="row g-4">
+        <div class="col-md-6 col-lg-3">
+          <div class="aa-card p-4">
+            <div class="aa-icon mb-3">🎙️</div>
+            <h5 class="fw-bold">1. Record</h5>
+            <p class="text-muted mb-0">
+              Record short audio segments using the app's microphone-based recording feature.
+            </p>
+          </div>
+        </div>
+
+        <div class="col-md-6 col-lg-3">
+          <div class="aa-card p-4">
+            <div class="aa-icon mb-3">☁️</div>
+            <h5 class="fw-bold">2. Upload</h5>
+            <p class="text-muted mb-0">
+              Audio is sent to the AudoAck backend when it is submitted for analysis.
+            </p>
+          </div>
+        </div>
+
+        <div class="col-md-6 col-lg-3">
+          <div class="aa-card p-4">
+            <div class="aa-icon mb-3">📊</div>
+            <h5 class="fw-bold">3. Analyze</h5>
+            <p class="text-muted mb-0">
+              The analysis pipeline produces audio signals and confidence information.
+            </p>
+          </div>
+        </div>
+
+        <div class="col-md-6 col-lg-3">
+          <div class="aa-card p-4">
+            <div class="aa-icon mb-3">📱</div>
+            <h5 class="fw-bold">4. Review</h5>
+            <p class="text-muted mb-0">
+              Review the latest available analysis associated with your devices.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="aa-section mb-5" id="analysis">
+      <div class="row g-4">
+        <div class="col-lg-7">
+          <div class="card border-0 shadow-sm rounded-4 h-100">
+            <div class="card-body p-4 p-lg-5">
+              <h3 class="fw-bold">Analysis signals</h3>
+              <p class="text-muted">
+                AudoAck currently presents analysis signals derived from submitted recordings.
+              </p>
+
+              <div class="row g-3 mt-2">
+                <div class="col-sm-6">
+                  <strong>Emotional tone</strong>
+                  <div class="text-muted small">Detected tone categories and confidence values.</div>
+                </div>
+                <div class="col-sm-6">
+                  <strong>Intensity</strong>
+                  <div class="text-muted small">Low, medium or high intensity indicators.</div>
+                </div>
+                <div class="col-sm-6">
+                  <strong>Background noise</strong>
+                  <div class="text-muted small">Presence, type and severity indicators.</div>
+                </div>
+                <div class="col-sm-6">
+                  <strong>Audio quality</strong>
+                  <div class="text-muted small">Indicators describing recording quality.</div>
+                </div>
+                <div class="col-sm-6">
+                  <strong>Speaker overlap</strong>
+                  <div class="text-muted small">Signals for overlapping speech.</div>
+                </div>
+                <div class="col-sm-6">
+                  <strong>Silence</strong>
+                  <div class="text-muted small">Indicators for extended silent segments.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-5">
+          <div class="card border-0 shadow-sm rounded-4 h-100 bg-dark text-white">
+            <div class="card-body p-4 p-lg-5">
+              <div class="small text-white-50">Try before signing in</div>
+              <h3 class="fw-bold my-3">Test the audio analyzer</h3>
+              <p class="text-white-50">
+                Use the public demo to submit a short microphone sample and
+                view the current analysis output.
+              </p>
+              <a class="btn btn-light mt-2" href="{% url 'public_demo' %}">
+                Open live demo →
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="aa-section mb-5">
+      <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body p-4 p-lg-5">
+          <div class="row align-items-center g-4">
+            <div class="col-lg-8">
+              <h3 class="fw-bold mb-2">Audio and privacy</h3>
+              <p class="text-muted mb-0">
+                AudoAck explains what account, device, audio and analysis information
+                it handles, why it is used, and how deletion requests are handled.
+                Review the complete privacy policy before using the service.
+              </p>
+            </div>
+            <div class="col-lg-4 text-lg-end">
+              <a href="{% url 'privacy_policy' %}" class="btn btn-outline-primary">
+                Read Privacy Policy
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="border-top pt-4 pb-2">
+      <div class="d-flex flex-column flex-md-row justify-content-between gap-2">
+        <span class="small text-muted">© {% now "Y" %} AudoAck</span>
+        <div>
+          <a class="small aa-footer-link me-3" href="{% url 'privacy_policy' %}">
+            Privacy Policy
+          </a>
+          <a class="small aa-footer-link" href="{% url 'public_demo' %}">
+            Live Demo
+          </a>
+        </div>
+      </div>
+    </footer>
+
+  </div>
+</div>
+{% endblock %}

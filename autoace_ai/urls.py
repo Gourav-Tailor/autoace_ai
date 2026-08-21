@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
+from django.views.generic import TemplateView
 
 from audio_analytics import api_v1, device_views
 
@@ -22,6 +23,16 @@ urlpatterns = [
     # App Routes (Dashboard, Upload, Batches)
     path("", include("audio_analytics.urls")),
     # Device / ESP32 / mobile APIs
+    path(
+        "privacy/",
+        TemplateView.as_view(template_name="audio_analytics/privacy_policy.html"),
+        name="privacy_policy",
+    ),
+    path(
+        "home/",
+        TemplateView.as_view(template_name="audio_analytics/home.html"),
+        name="home",
+    ),
     path(
         "api/v1/sessions/",
         api_v1.SessionInitView.as_view(),
