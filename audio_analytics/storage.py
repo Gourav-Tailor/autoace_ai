@@ -8,14 +8,15 @@ class MinIOStorage(S3Storage):
     """
     MinIO storage backend.
 
-    Internal Docker endpoint:
+    Internal endpoint:
         http://minio:9000
 
-    Public endpoint for browser playback:
-        http://34.148.248.202:9000
+    Public browser endpoint:
+        https://audoack.in
 
-    Uploads/storage operations continue using the internal endpoint.
-    Presigned playback URLs are generated against the public endpoint.
+    The public endpoint is intentionally the same HTTPS hostname served by
+    the Google HTTPS Load Balancer. Nginx routes /<bucket>/... internally to
+    MinIO, so browsers never need to access MinIO on port 9000 directly.
     """
 
     def url(self, name, parameters=None, expire=None, http_method=None):

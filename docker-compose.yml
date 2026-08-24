@@ -36,9 +36,9 @@ services:
       MINIO_API_CORS_ALLOW_ORIGIN: ${MINIO_API_CORS_ALLOW_ORIGIN:-*}
     volumes:
       - minio_data:/data
-    ports:
-      - "9000:9000"
-      - "9001:9001"
+    # MinIO is intentionally NOT published to the VM host.
+    # Browser access goes through:
+    # HTTPS LB -> Nginx -> minio:9000
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live >/dev/null || exit 1"]
       interval: 5s
@@ -117,6 +117,7 @@ services:
       - static_data:/app/staticfiles:ro
     depends_on:
       - web
+      - minio
 
 volumes:
   postgres_data:
