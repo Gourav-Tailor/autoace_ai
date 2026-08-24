@@ -2,6 +2,7 @@ from django.urls import path
 from django.views.generic import TemplateView
 
 from .api_views import LiveDemoAnalysisView, LongRecorderBatchView
+from .billing_views import BillingView
 from .mobile_api import (
     MobileDeviceLatestAnalysisView,
     MobileDevicesView,
@@ -18,8 +19,8 @@ from .views import (
 )
 
 urlpatterns = [
-    # Dashboard route changed to /dashboard/
     path("dashboard/", DashboardView.as_view(), name="dashboard"),
+    path("billing/", BillingView.as_view(), name="billing"),
     path("signup/", SignUpView.as_view(), name="signup"),
     path(
         "demo/",
@@ -43,7 +44,6 @@ urlpatterns = [
     path(
         "api/long-recorder/", LongRecorderBatchView.as_view(), name="long_recorder_api"
     ),
-    # Mobile application APIs
     path(
         "api/v1/mobile/login/",
         MobileLoginView.as_view(),

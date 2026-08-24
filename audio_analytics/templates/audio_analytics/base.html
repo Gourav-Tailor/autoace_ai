@@ -30,10 +30,7 @@
 <body>
     <div class="container-fluid">
         <div class="row">
-
             {% if user.is_authenticated %}
-
-                <!-- Sidebar -->
                 <div class="col-md-2 sidebar p-3 d-flex flex-column">
                     <h4 class="fw-bold mb-4 text-white">AudoAck AI</h4>
 
@@ -47,12 +44,19 @@
                            class="{% if request.resolver_match.url_name == 'batch_list' %}active{% endif %}">
                             Batch Processing
                         </a>
+
                         <li class="nav-item">
                             <a class="nav-link" href="{% url 'long_recorder' %}">Live Recorder</a>
                         </li>
+
                         <li class="nav-item">
                             <a class="nav-link" href="{% url 'device_tokens' %}">Device Tokens</a>
                         </li>
+
+                        <a href="{% url 'billing' %}"
+                           class="{% if request.resolver_match.url_name == 'billing' %}active{% endif %}">
+                            Billing
+                        </a>
                     </nav>
 
                     <div class="mt-auto pt-3 border-top border-secondary">
@@ -68,14 +72,11 @@
                         </form>
                     </div>
                 </div>
-
             {% endif %}
 
-            <!-- Main Content -->
             <div class="{% if user.is_authenticated %}col-md-10{% else %}col-12{% endif %} p-4">
                 {% block content %}{% endblock %}
             </div>
-
         </div>
     </div>
 

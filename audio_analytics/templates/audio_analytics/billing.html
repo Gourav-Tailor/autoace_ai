@@ -1,0 +1,165 @@
+{% extends 'audio_analytics/base.html' %}
+
+{% block title %}Billing - AudoAck AI{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div>
+        <h2 class="mb-1">Billing</h2>
+        <p class="text-muted mb-0">Usage-based estimate for {{ period.label }}.</p>
+    </div>
+
+    <div class="d-flex gap-2 align-items-center">
+        <a href="?month={{ previous_month }}" class="btn btn-outline-secondary btn-sm">
+            Previous
+        </a>
+        {% if can_go_next %}
+            <a href="?month={{ next_month }}" class="btn btn-outline-secondary btn-sm">
+                Next
+            </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card card-custom h-100">
+            <div class="card-body p-4">
+                <div class="text-muted small text-uppercase">Current usage</div>
+                <div class="display-6 fw-bold mt-2">${{ billing.actual_total|floatformat:4 }}</div>
+                <div class="text-muted small mt-1">Accumulated so far in this billing period</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card card-custom h-100 border-primary">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-muted small text-uppercase">Projected monthly bill</div>
+                        <div class="display-6 fw-bold mt-2">${{ billing.projected_total|floatformat:4 }}</div>
+                        <div class="text-muted small mt-1">
+                            {% if period.is_current %}
+                                Based on the current daily usage rate
+                            {% else %}
+                                Final amount for the selected month
+                            {% endif %}
+                        </div>
+                    </div>
+                    <span class="badge bg-warning text-dark">Estimate</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+        <div class="card card-custom h-100">
+            <div class="card-body">
+                <div class="text-muted small">Batches</div>
+                <div class="h3 mb-0">{{ billing.summary.batches }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card card-custom h-100">
+            <div class="card-body">
+                <div class="text-muted small">Processed clips</div>
+                <div class="h3 mb-0">{{ billing.summary.processed_clips }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card card-custom h-100">
+            <div class="card-body">
+                <div class="text-muted small">Failed clips</div>
+                <div class="h3 mb-0">{{ billing.summary.failed_clips }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card card-custom h-100">
+            <div class="card-body">
+                <div class="text-muted small">Active devices</div>
+                <div class="h3 mb-0">{{ billing.summary.active_devices }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card card-custom mb-4">
+    <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h5 class="fw-bold mb-1">Services & usage</h5>
+                <p class="text-muted small mb-0">
+                    Costs are rough infrastructure estimates and are not yet a payment invoice.
+                </p>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Service</th>
+                        <th>Usage</th>
+                        <th>Rate</th>
+                        <th>Estimated cost</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for service in billing.services %}
+                    <tr>
+                        <td>
+                            <div class="fw-semibold">{{ service.name }}</div>
+                            <div class="text-muted small">{{ service.description }}</div>
+                            {% if service.note %}
+                                <div class="text-muted small mt-1">{{ service.note }}</div>
+                            {% endif %}
+                        </td>
+                        <td>{{ service.usage }} {{ service.unit }}</td>
+                        <td>
+                            {% if service.metered %}
+                                ${{ service.rate|floatformat:4 }} / {{ service.unit|slice:":-1" }}
+                            {% else %}
+                                Included
+                            {% endif %}
+                        </td>
+                        <td class="fw-semibold">${{ service.cost|floatformat:4 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted py-4">
+                            No billable usage found for this month.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <th colspan="3" class="text-end">Usage total</th>
+                        <th>${{ billing.actual_total|floatformat:4 }}</th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card card-custom">
+    <div class="card-body p-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <h5 class="fw-bold mb-1">Payment</h5>
+            <p class="text-muted small mb-0">
+                Payment processing is not connected yet. The amount above will remain an estimate until billing is finalized.
+            </p>
+        </div>
+        <button type="button" class="btn btn-primary px-4" disabled title="Payment integration is not configured yet">
+            Pay ${{ billing.actual_total|floatformat:4 }}
+        </button>
+    </div>
+</div>
+{% endblock %}
