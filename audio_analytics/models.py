@@ -8,14 +8,14 @@ from django.db import models
 
 
 def generate_device_key():
-    return secrets.token_hex(20)  # 40 hex chars
+    return secrets.token_hex(20)
 
 
 class Device(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="devices"
     )
-    name = models.CharField(max_length=100)  # e.g. "Living Room ESP32", "iPhone App"
+    name = models.CharField(max_length=100)
     key = models.CharField(
         max_length=64, unique=True, default=generate_device_key, editable=False
     )
@@ -42,9 +42,7 @@ class BatchUpload(models.Model):
         max_length=20, choices=Status.choices, default=Status.PENDING
     )
     error_message = models.TextField(blank=True, null=True)
-    metrics_json = models.TextField(
-        blank=True, null=True
-    )  # Stores F1, Accuracy, and Confusion Matrix
+    metrics_json = models.TextField(blank=True, null=True)
     name = models.CharField(max_length=255, default="Live Recording")
     device = models.ForeignKey(
         Device, null=True, blank=True, on_delete=models.SET_NULL, related_name="batches"
@@ -63,7 +61,6 @@ class BatchUpload(models.Model):
 
 
 class AudioAnalysis(models.Model):
-    # Enums matching required schema choices
     class EmotionalTone(models.TextChoices):
         NEUTRAL = "neutral", "Neutral"
         SATISFIED = "satisfied", "Satisfied"
@@ -92,7 +89,6 @@ class AudioAnalysis(models.Model):
         SUCCESS = "success", "Success"
         FAILED = "failed", "Failed"
 
-    # Relationships & Metadata
     batch = models.ForeignKey(
         BatchUpload,
         related_name="analyses",
@@ -108,8 +104,6 @@ class AudioAnalysis(models.Model):
         default=ProcessingStatus.PENDING,
     )
     error_details = models.TextField(blank=True, default="")
-
-    # Schema Fields
     emotional_tone = models.CharField(
         max_length=20, choices=EmotionalTone.choices, blank=True, null=True
     )
@@ -133,11 +127,9 @@ class AudioAnalysis(models.Model):
         null=True,
         blank=True,
     )
-
     created_at = models.DateTimeField(auto_now_add=True)
 
     def to_dict(self):
-        """Returns the dictionary formatted exactly as required by the JSON output schema."""
         return {
             "emotional_tone": self.emotional_tone,
             "emotional_intensity": self.emotional_intensity,
@@ -176,8 +168,41 @@ class MobileAuthToken(models.Model):
 
     @classmethod
     def issue(cls, user):
-        token = secrets.token_urlsafe(48)
-        return cls.objects.create(user=user, token=token)
+        return cls.objects.create(user=user, token=secrets.token_urlsafe(48))
 
     def __str__(self):
         return f"Mobile token for {self.user.username}"
+
+
+class Payment(models.Model):
+    class Status(models.TextChoices):
+        CREATED = "created", "Created"
+        PAID = "paid", "Paid"
+        FAILED = "failed", "Failed"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="billing_payments",
+    )
+    billing_month = models.DateField()
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3, default="INR")
+    idempotency_key = models.CharField(max_length=64, unique=True, editable=False)
+    razorpay_order_id = models.CharField(max_length=100, unique=True)
+    razorpay_payment_id = models.CharField(
+        max_length=100, unique=True, null=True, blank=True
+    )
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.CREATED
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "billing_month", "status"]),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} {self.billing_month:%Y-%m} {self.amount} {self.status}"

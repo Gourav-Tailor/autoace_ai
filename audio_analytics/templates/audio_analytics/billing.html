@@ -6,144 +6,63 @@
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
     <div>
         <h2 class="mb-1">Billing</h2>
-        <p class="text-muted mb-0">Usage-based estimate for {{ period.label }}.</p>
+        <p class="text-muted mb-0">Usage and monthly bill for {{ period.label }}.</p>
     </div>
-
     <div class="d-flex gap-2 align-items-center">
-        <a href="?month={{ previous_month }}" class="btn btn-outline-secondary btn-sm">
-            Previous
-        </a>
-        {% if can_go_next %}
-            <a href="?month={{ next_month }}" class="btn btn-outline-secondary btn-sm">
-                Next
-            </a>
-        {% endif %}
+        <div class="btn-group btn-group-sm" role="group" aria-label="Display currency">
+            <button type="button" class="btn btn-primary currency-toggle" data-currency="INR">INR</button>
+            <button type="button" class="btn btn-outline-primary currency-toggle" data-currency="USD">USD</button>
+        </div>
+        <a href="?month={{ previous_month }}" class="btn btn-outline-secondary btn-sm">Previous</a>
+        {% if can_go_next %}<a href="?month={{ next_month }}" class="btn btn-outline-secondary btn-sm">Next</a>{% endif %}
     </div>
 </div>
 
 <div class="row g-3 mb-4">
-    <div class="col-md-6">
-        <div class="card card-custom h-100">
-            <div class="card-body p-4">
-                <div class="text-muted small text-uppercase">Current usage</div>
-                <div class="display-6 fw-bold mt-2">${{ billing.actual_total|floatformat:4 }}</div>
-                <div class="text-muted small mt-1">Accumulated so far in this billing period</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-6">
-        <div class="card card-custom h-100 border-primary">
-            <div class="card-body p-4">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <div class="text-muted small text-uppercase">Projected monthly bill</div>
-                        <div class="display-6 fw-bold mt-2">${{ billing.projected_total|floatformat:4 }}</div>
-                        <div class="text-muted small mt-1">
-                            {% if period.is_current %}
-                                Based on the current daily usage rate
-                            {% else %}
-                                Final amount for the selected month
-                            {% endif %}
-                        </div>
-                    </div>
-                    <span class="badge bg-warning text-dark">Estimate</span>
-                </div>
-            </div>
-        </div>
-    </div>
+    <div class="col-md-4"><div class="card card-custom h-100"><div class="card-body p-4">
+        <div class="text-muted small text-uppercase">Current usage</div>
+        <div class="display-6 fw-bold mt-2 currency-amount" data-inr="{{ billing.actual_total }}">₹ {{ billing.actual_total|floatformat:2 }}</div>
+        <div class="text-muted small mt-1">Accumulated usage for this month</div>
+    </div></div></div>
+    <div class="col-md-4"><div class="card card-custom h-100 border-primary"><div class="card-body p-4">
+        <div class="text-muted small text-uppercase">Projected monthly bill</div>
+        <div class="display-6 fw-bold mt-2 currency-amount" data-inr="{{ billing.projected_total }}">₹ {{ billing.projected_total|floatformat:2 }}</div>
+        <div class="text-muted small mt-1">{% if period.is_current %}Based on the current daily usage rate{% else %}Final amount for the selected month{% endif %}</div>
+    </div></div></div>
+    <div class="col-md-4"><div class="card card-custom h-100 border-success"><div class="card-body p-4">
+        <div class="text-muted small text-uppercase">Outstanding</div>
+        <div class="display-6 fw-bold mt-2 currency-amount" data-inr="{{ billing.outstanding_total }}">₹ {{ billing.outstanding_total|floatformat:2 }}</div>
+        <div class="text-muted small mt-1">Paid: <span class="currency-amount" data-inr="{{ billing.paid_total }}">₹ {{ billing.paid_total|floatformat:2 }}</span></div>
+    </div></div></div>
 </div>
 
 <div class="row g-3 mb-4">
-    <div class="col-sm-6 col-xl-3">
-        <div class="card card-custom h-100">
-            <div class="card-body">
-                <div class="text-muted small">Batches</div>
-                <div class="h3 mb-0">{{ billing.summary.batches }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-sm-6 col-xl-3">
-        <div class="card card-custom h-100">
-            <div class="card-body">
-                <div class="text-muted small">Processed clips</div>
-                <div class="h3 mb-0">{{ billing.summary.processed_clips }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-sm-6 col-xl-3">
-        <div class="card card-custom h-100">
-            <div class="card-body">
-                <div class="text-muted small">Failed clips</div>
-                <div class="h3 mb-0">{{ billing.summary.failed_clips }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-sm-6 col-xl-3">
-        <div class="card card-custom h-100">
-            <div class="card-body">
-                <div class="text-muted small">Active devices</div>
-                <div class="h3 mb-0">{{ billing.summary.active_devices }}</div>
-            </div>
-        </div>
-    </div>
+    {% for label, value in billing.summary.items %}
+    <div class="col-sm-6 col-xl-3"><div class="card card-custom h-100"><div class="card-body">
+        <div class="text-muted small text-capitalize">{{ label|cut:"_" }}</div>
+        <div class="h3 mb-0">{{ value }}</div>
+    </div></div></div>
+    {% endfor %}
 </div>
 
 <div class="card card-custom mb-4">
     <div class="card-body p-4">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <div>
-                <h5 class="fw-bold mb-1">Services & usage</h5>
-                <p class="text-muted small mb-0">
-                    Costs are rough infrastructure estimates and are not yet a payment invoice.
-                </p>
-            </div>
-        </div>
-
+        <h5 class="fw-bold mb-1">Services & usage</h5>
+        <p class="text-muted small mb-3">Usage-based estimate. Rates are configurable in environment variables.</p>
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Service</th>
-                        <th>Usage</th>
-                        <th>Rate</th>
-                        <th>Estimated cost</th>
-                    </tr>
-                </thead>
+                <thead class="table-light"><tr><th>Service</th><th>Usage</th><th>Rate</th><th>Cost</th></tr></thead>
                 <tbody>
-                    {% for service in billing.services %}
+                {% for service in billing.services %}
                     <tr>
-                        <td>
-                            <div class="fw-semibold">{{ service.name }}</div>
-                            <div class="text-muted small">{{ service.description }}</div>
-                            {% if service.note %}
-                                <div class="text-muted small mt-1">{{ service.note }}</div>
-                            {% endif %}
-                        </td>
+                        <td><div class="fw-semibold">{{ service.name }}</div><div class="text-muted small">{{ service.description }}</div>{% if service.note %}<div class="text-muted small">{{ service.note }}</div>{% endif %}</td>
                         <td>{{ service.usage }} {{ service.unit }}</td>
-                        <td>
-                            {% if service.metered %}
-                                ${{ service.rate|floatformat:4 }} / {{ service.unit|slice:":-1" }}
-                            {% else %}
-                                Included
-                            {% endif %}
-                        </td>
-                        <td class="fw-semibold">${{ service.cost|floatformat:4 }}</td>
+                        <td>{% if service.metered %}<span class="currency-amount" data-inr="{{ service.rate }}">₹ {{ service.rate|floatformat:4 }}</span> / {{ service.unit|slice:":-1" }}{% else %}Included{% endif %}</td>
+                        <td class="fw-semibold"><span class="currency-amount" data-inr="{{ service.cost }}">₹ {{ service.cost|floatformat:2 }}</span></td>
                     </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="4" class="text-center text-muted py-4">
-                            No billable usage found for this month.
-                        </td>
-                    </tr>
-                    {% endfor %}
+                {% endfor %}
                 </tbody>
-                <tfoot class="table-light">
-                    <tr>
-                        <th colspan="3" class="text-end">Usage total</th>
-                        <th>${{ billing.actual_total|floatformat:4 }}</th>
-                    </tr>
-                </tfoot>
+                <tfoot class="table-light"><tr><th colspan="3" class="text-end">Usage total</th><th><span class="currency-amount" data-inr="{{ billing.actual_total }}">₹ {{ billing.actual_total|floatformat:2 }}</span></th></tr></tfoot>
             </table>
         </div>
     </div>
@@ -152,14 +71,116 @@
 <div class="card card-custom">
     <div class="card-body p-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
         <div>
-            <h5 class="fw-bold mb-1">Payment</h5>
-            <p class="text-muted small mb-0">
-                Payment processing is not connected yet. The amount above will remain an estimate until billing is finalized.
+            <h5 class="fw-bold mb-1">Pay monthly bill</h5>
+            <p id="payment-message" class="text-muted small mb-0">
+                {% if billing.outstanding_total > 0 %}
+                    Pay the current outstanding amount. Payment confirmation is handled by Razorpay webhook.
+                {% else %}
+                    This billing period is fully paid.
+                {% endif %}
             </p>
         </div>
-        <button type="button" class="btn btn-primary px-4" disabled title="Payment integration is not configured yet">
-            Pay ${{ billing.actual_total|floatformat:4 }}
+        <button id="pay-button" type="button" class="btn btn-primary px-4"
+            {% if not razorpay_enabled or not period.is_current or billing.outstanding_total <= 0 %}disabled{% endif %}>
+            {% if billing.outstanding_total > 0 %}Pay ₹ {{ billing.outstanding_total|floatformat:2 }}{% else %}Paid{% endif %}
         </button>
     </div>
 </div>
+
+
+<script>
+(function () {
+    // Display-only FX rate. Razorpay checkout/payment remains INR.
+    const USD_INR_RATE = Number("{{ billing.usd_inr_rate|default:'90' }}");
+    const currencyKey = "audoack_billing_currency";
+    const buttons = document.querySelectorAll(".currency-toggle");
+
+    function formatAmount(inr, currency) {
+        const value = currency === "USD" ? Number(inr) / USD_INR_RATE : Number(inr);
+        return new Intl.NumberFormat(currency === "USD" ? "en-US" : "en-IN", {
+            style: "currency",
+            currency: currency,
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 4
+        }).format(value);
+    }
+
+    function setCurrency(currency) {
+        document.querySelectorAll(".currency-amount").forEach((el) => {
+            el.textContent = formatAmount(el.dataset.inr, currency);
+        });
+
+        buttons.forEach((button) => {
+            const active = button.dataset.currency === currency;
+            button.classList.toggle("btn-primary", active);
+            button.classList.toggle("btn-outline-primary", !active);
+        });
+
+        localStorage.setItem(currencyKey, currency);
+    }
+
+    buttons.forEach((button) => {
+        button.addEventListener("click", () => setCurrency(button.dataset.currency));
+    });
+
+    setCurrency(localStorage.getItem(currencyKey) === "USD" ? "USD" : "INR");
+})();
+</script>
+
+{% if razorpay_enabled and period.is_current and billing.outstanding_total > 0 %}
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+(function () {
+    const button = document.getElementById("pay-button");
+    const message = document.getElementById("payment-message");
+    const csrfToken = "{{ csrf_token }}";
+    const amountLabel = "Pay {{ billing.currency }} {{ billing.outstanding_total|floatformat:2 }}";
+
+    button.addEventListener("click", async () => {
+        button.disabled = true;
+        button.textContent = "Creating order...";
+
+        try {
+            const response = await fetch("{% url 'billing_create_order' %}", {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": csrfToken,
+                    "X-Requested-With": "XMLHttpRequest"
+                }
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || "Unable to create payment order.");
+
+            const checkout = new Razorpay({
+                key: data.key_id,
+                amount: data.amount,
+                currency: data.currency,
+                name: "AudoAck",
+                description: "{{ period.label }} usage bill",
+                order_id: data.order_id,
+                handler: function () {
+                    message.textContent = "Payment submitted. The bill will update after Razorpay confirms the payment.";
+                    button.textContent = "Payment submitted";
+                }
+            });
+
+            checkout.on("payment.failed", function (response) {
+                message.textContent = response.error?.description || "Payment failed. Please try again.";
+                button.disabled = false;
+                button.textContent = amountLabel;
+            });
+
+            checkout.open();
+        } catch (error) {
+            message.textContent = error.message;
+            button.disabled = false;
+            button.textContent = amountLabel;
+        }
+    });
+})();
+</script>
+{% elif not razorpay_enabled %}
+<p class="text-muted small mt-2">Payment gateway is not configured yet. Add Razorpay credentials after account approval.</p>
+{% endif %}
 {% endblock %}

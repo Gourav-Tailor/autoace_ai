@@ -179,3 +179,15 @@ CELERY_BROKER_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 CELERY_RESULT_BACKEND = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
+# Add these to autoace_ai/settings.py
+
+BILLING_CURRENCY = os.getenv("BILLING_CURRENCY", "INR").upper()
+BILLING_AUDIO_ANALYSIS_RATE = os.getenv("BILLING_AUDIO_ANALYSIS_RATE", "0.003")
+BILLING_FAILED_ANALYSIS_RATE = os.getenv("BILLING_FAILED_ANALYSIS_RATE", "0.001")
+BILLING_BATCH_RATE = os.getenv("BILLING_BATCH_RATE", "0.001")
+
+RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "")
+RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "")
+RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
+
+# Display-only exchange rate used by the Billing INR/USD toggle. Razorpay remains INR.\nBILLING_USD_INR_RATE = os.getenv("BILLING_USD_INR_RATE", "90")\n

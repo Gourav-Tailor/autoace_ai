@@ -1,14 +1,14 @@
 from calendar import monthrange
 from dataclasses import dataclass
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Optional
 
 from django.conf import settings
-from django.db.models import QuerySet
+from django.db.models import QuerySet, Sum
 from django.utils import timezone
 
-from .models import AudioAnalysis, BatchUpload, Device
+from .models import AudioAnalysis, BatchUpload, Device, Payment
 
 DEFAULT_AUDIO_ANALYSIS_RATE = Decimal("0.003")
 DEFAULT_FAILED_ANALYSIS_RATE = Decimal("0.001")
@@ -16,9 +16,8 @@ DEFAULT_BATCH_RATE = Decimal("0.001")
 
 
 def _rate(name: str, default: Decimal) -> Decimal:
-    value = getattr(settings, name, default)
     try:
-        return Decimal(str(value))
+        return Decimal(str(getattr(settings, name, default)))
     except Exception:
         return default
 
@@ -28,6 +27,7 @@ FAILED_ANALYSIS_RATE = _rate(
     "BILLING_FAILED_ANALYSIS_RATE", DEFAULT_FAILED_ANALYSIS_RATE
 )
 BATCH_RATE = _rate("BILLING_BATCH_RATE", DEFAULT_BATCH_RATE)
+BILLING_CURRENCY = getattr(settings, "BILLING_CURRENCY", "INR").upper()
 
 
 @dataclass(frozen=True)
@@ -43,7 +43,6 @@ class BillingPeriod:
 def get_billing_period(year: int, month: int) -> BillingPeriod:
     first_day = date(year, month, 1)
     last_day = date(year, month, monthrange(year, month)[1])
-
     tz = timezone.get_current_timezone()
     start = timezone.make_aware(
         datetime.combine(first_day, datetime.min.time()), timezone=tz
@@ -51,21 +50,12 @@ def get_billing_period(year: int, month: int) -> BillingPeriod:
     end = timezone.make_aware(
         datetime.combine(last_day, datetime.max.time()), timezone=tz
     )
-
     now = timezone.localtime()
     is_current = now.year == year and now.month == month
-    days_in_period = (last_day - first_day).days + 1
-    elapsed_days = (
-        max(1, min(now.day, days_in_period)) if is_current else days_in_period
-    )
-
+    days = (last_day - first_day).days + 1
+    elapsed = max(1, min(now.day, days)) if is_current else days
     return BillingPeriod(
-        start=start,
-        end=end,
-        label=first_day.strftime("%B %Y"),
-        is_current=is_current,
-        days_in_period=days_in_period,
-        elapsed_days=elapsed_days,
+        start, end, first_day.strftime("%B %Y"), is_current, days, elapsed
     )
 
 
@@ -78,10 +68,8 @@ def parse_period(value: Optional[str]) -> BillingPeriod:
     if value:
         try:
             year, month = value.split("-", 1)
-            year = int(year)
-            month = int(month)
-            if 1 <= month <= 12 and 2000 <= year <= 2100:
-                return get_billing_period(year, month)
+            if 2000 <= int(year) <= 2100 and 1 <= int(month) <= 12:
+                return get_billing_period(int(year), int(month))
         except (TypeError, ValueError):
             pass
     return get_current_period()
@@ -98,7 +86,6 @@ def calculate_billing(user, period: BillingPeriod) -> dict:
     analyses = _period_queryset(
         AudioAnalysis.objects.filter(batch__user=user), period, "created_at"
     )
-
     successful = analyses.filter(status=AudioAnalysis.ProcessingStatus.SUCCESS)
     failed = analyses.filter(status=AudioAnalysis.ProcessingStatus.FAILED)
 
@@ -154,21 +141,33 @@ def calculate_billing(user, period: BillingPeriod) -> dict:
         },
     ]
 
-    actual_total = sum((item["cost"] for item in services), Decimal("0"))
-
-    if period.is_current:
-        projected_total = (
+    actual_total = sum((item["cost"] for item in services), Decimal("0")).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
+    projected_total = (
+        (
             actual_total * Decimal(period.days_in_period) / Decimal(period.elapsed_days)
-        )
-    else:
-        projected_total = actual_total
+        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if period.is_current
+        else actual_total
+    )
+
+    month = period.start.date().replace(day=1)
+    paid_total = Payment.objects.filter(
+        user=user, billing_month=month, status=Payment.Status.PAID
+    ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
+    outstanding_total = max(Decimal("0"), actual_total - paid_total).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
 
     return {
         "period": period,
         "services": services,
         "actual_total": actual_total,
         "projected_total": projected_total,
-        "currency": "USD",
+        "paid_total": paid_total,
+        "outstanding_total": outstanding_total,
+        "currency": BILLING_CURRENCY,
         "summary": {
             "batches": batch_count,
             "processed_clips": successful_count,

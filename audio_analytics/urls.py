@@ -2,6 +2,7 @@ from django.urls import path
 from django.views.generic import TemplateView
 
 from .api_views import LiveDemoAnalysisView, LongRecorderBatchView
+from .billing_payments import CreateRazorpayOrderView, razorpay_webhook
 from .billing_views import BillingView
 from .mobile_api import (
     MobileDeviceLatestAnalysisView,
@@ -21,6 +22,10 @@ from .views import (
 urlpatterns = [
     path("dashboard/", DashboardView.as_view(), name="dashboard"),
     path("billing/", BillingView.as_view(), name="billing"),
+    path(
+        "billing/pay/", CreateRazorpayOrderView.as_view(), name="billing_create_order"
+    ),
+    path("billing/webhook/razorpay/", razorpay_webhook, name="razorpay_webhook"),
     path("signup/", SignUpView.as_view(), name="signup"),
     path(
         "demo/",
@@ -44,21 +49,9 @@ urlpatterns = [
     path(
         "api/long-recorder/", LongRecorderBatchView.as_view(), name="long_recorder_api"
     ),
-    path(
-        "api/v1/mobile/login/",
-        MobileLoginView.as_view(),
-        name="mobile_login",
-    ),
-    path(
-        "api/v1/mobile/logout/",
-        MobileLogoutView.as_view(),
-        name="mobile_logout",
-    ),
-    path(
-        "api/v1/mobile/devices/",
-        MobileDevicesView.as_view(),
-        name="mobile_devices",
-    ),
+    path("api/v1/mobile/login/", MobileLoginView.as_view(), name="mobile_login"),
+    path("api/v1/mobile/logout/", MobileLogoutView.as_view(), name="mobile_logout"),
+    path("api/v1/mobile/devices/", MobileDevicesView.as_view(), name="mobile_devices"),
     path(
         "api/v1/mobile/devices/<int:device_id>/latest-analysis/",
         MobileDeviceLatestAnalysisView.as_view(),
