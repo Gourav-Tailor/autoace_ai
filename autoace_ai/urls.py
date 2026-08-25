@@ -6,33 +6,38 @@ from django.views.generic import TemplateView
 from audio_analytics import api_v1, device_views
 
 urlpatterns = [
-    # Admin Interface
     path("admin/", admin.site.urls),
-    # Root URL (http://localhost:8000/) shows Login Page
+    # Public landing page.
     path(
         "",
+        TemplateView.as_view(template_name="audio_analytics/home.html"),
+        name="home",
+    ),
+    # Browser authentication.
+    path(
+        "login/",
         auth_views.LoginView.as_view(template_name="audio_analytics/login.html"),
         name="login",
     ),
-    # Logout URL
     path(
         "logout/",
-        auth_views.LogoutView.as_view(next_page="login"),
+        auth_views.LogoutView.as_view(next_page="home"),
         name="logout",
     ),
-    # App Routes (Dashboard, Upload, Batches)
+    # App routes.
     path("", include("audio_analytics.urls")),
-    # Device / ESP32 / mobile APIs
     path(
         "privacy/",
         TemplateView.as_view(template_name="audio_analytics/privacy_policy.html"),
         name="privacy_policy",
     ),
+    # Keep the old landing-page URL working.
     path(
         "home/",
         TemplateView.as_view(template_name="audio_analytics/home.html"),
-        name="home",
+        name="legacy_home",
     ),
+    # Device / ESP32 / mobile APIs.
     path(
         "api/v1/sessions/",
         api_v1.SessionInitView.as_view(),
@@ -53,14 +58,11 @@ urlpatterns = [
         api_v1.SessionHeartbeatView.as_view(),
         name="api_v1_session_heartbeat",
     ),
-    # Mobile: latest analyzed chunk for the authenticated device's
-    # most recent recording batch.
     path(
         "api/v1/latest-analysis/",
         api_v1.LatestDeviceAnalysisView.as_view(),
         name="api_v1_latest_analysis",
     ),
-    # Browser pages for managing device tokens
     path(
         "devices/",
         device_views.device_tokens_view,
