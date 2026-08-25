@@ -58,6 +58,7 @@ class CreateRazorpayOrderView(LoginRequiredMixin, View):
         try:
             with transaction.atomic():
                 existing = Payment.objects.filter(idempotency_key=key).first()
+
                 if existing and existing.status == Payment.Status.CREATED:
                     return JsonResponse(
                         {
@@ -105,6 +106,65 @@ class CreateRazorpayOrderView(LoginRequiredMixin, View):
             )
 
 
+class VerifyRazorpayPaymentView(LoginRequiredMixin, View):
+    http_method_names = ["post"]
+
+    def post(self, request, *args, **kwargs):
+        try:
+            payload = json.loads(request.body)
+            order_id = payload["razorpay_order_id"]
+            payment_id = payload["razorpay_payment_id"]
+            signature = payload["razorpay_signature"]
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            return JsonResponse(
+                {"error": "Invalid payment verification payload."}, status=400
+            )
+
+        try:
+            payment = Payment.objects.get(
+                razorpay_order_id=order_id,
+                user=request.user,
+            )
+        except Payment.DoesNotExist:
+            return JsonResponse({"error": "Unknown Razorpay order."}, status=404)
+
+        if payment.status == Payment.Status.PAID:
+            return JsonResponse({"status": "already_verified"})
+
+        try:
+            _client().utility.verify_payment_signature(
+                {
+                    "razorpay_order_id": order_id,
+                    "razorpay_payment_id": payment_id,
+                    "razorpay_signature": signature,
+                }
+            )
+        except Exception:
+            return JsonResponse({"error": "Invalid payment signature."}, status=400)
+
+        try:
+            details = _client().payment.fetch(payment_id)
+        except Exception:
+            return JsonResponse(
+                {"error": "Unable to verify payment with Razorpay."}, status=502
+            )
+
+        if (
+            details.get("order_id") != payment.razorpay_order_id
+            or int(details.get("amount", -1)) != _paise(payment.amount)
+            or details.get("currency") != payment.currency
+        ):
+            return JsonResponse(
+                {"error": "Razorpay payment does not match the billing order."},
+                status=400,
+            )
+
+        payment.razorpay_payment_id = payment_id
+        payment.save(update_fields=["razorpay_payment_id"])
+
+        return JsonResponse({"status": "verified"})
+
+
 @csrf_exempt
 @require_POST
 def razorpay_webhook(request):
@@ -112,10 +172,14 @@ def razorpay_webhook(request):
     if not secret:
         return JsonResponse({"error": "Webhook secret is not configured."}, status=503)
 
+    signature = request.headers.get("X-Razorpay-Signature", "")
+    if not signature:
+        return JsonResponse({"error": "Missing webhook signature."}, status=400)
+
     try:
         _client().utility.verify_webhook_signature(
             request.body.decode("utf-8"),
-            request.headers.get("X-Razorpay-Signature", ""),
+            signature,
             secret,
         )
     except Exception:
@@ -124,26 +188,59 @@ def razorpay_webhook(request):
     try:
         payload = json.loads(request.body)
         event = payload.get("event")
-        entity = payload.get("payload", {}).get("payment", {}).get("entity", {})
-        order_id = entity.get("order_id")
+        payment_entity = payload.get("payload", {}).get("payment", {}).get("entity", {})
 
-        if event in {"payment.captured", "order.paid"} and order_id:
-            payment = Payment.objects.get(razorpay_order_id=order_id)
-            payment.status = Payment.Status.PAID
-            payment.razorpay_payment_id = (
-                entity.get("id") or payment.razorpay_payment_id
-            )
-            payment.paid_at = payment.paid_at or timezone.now()
-            payment.save(update_fields=["status", "razorpay_payment_id", "paid_at"])
+        # order.paid has an order entity instead of a payment entity in some
+        # webhook payloads. Use the payment entity when available and fall
+        # back to the order entity for the order id.
+        order_entity = payload.get("payload", {}).get("order", {}).get("entity", {})
+        entity = payment_entity or order_entity
+        order_id = entity.get("order_id") or order_entity.get("id")
 
-        elif event == "payment.failed" and order_id:
+        if not order_id:
+            return JsonResponse({"status": "ignored"})
+
+        payment = Payment.objects.get(razorpay_order_id=order_id)
+
+        if event in {"payment.captured", "order.paid"}:
+            amount = entity.get("amount")
+            currency = entity.get("currency")
+
+            if amount is not None and int(amount) != _paise(payment.amount):
+                return JsonResponse({"error": "Webhook amount mismatch."}, status=400)
+
+            if currency and currency != payment.currency:
+                return JsonResponse({"error": "Webhook currency mismatch."}, status=400)
+
+            # Idempotent: repeated captured/paid webhooks leave the same
+            # payment in the PAID state and never add another payment row.
+            update_fields = []
+
+            if payment.status != Payment.Status.PAID:
+                payment.status = Payment.Status.PAID
+                update_fields.append("status")
+
+            payment_id = entity.get("id") or payment.razorpay_payment_id
+            if payment_id and payment.razorpay_payment_id != payment_id:
+                payment.razorpay_payment_id = payment_id
+                update_fields.append("razorpay_payment_id")
+
+            if payment.paid_at is None:
+                payment.paid_at = timezone.now()
+                update_fields.append("paid_at")
+
+            if update_fields:
+                payment.save(update_fields=update_fields)
+
+        elif event == "payment.failed":
             Payment.objects.filter(
                 razorpay_order_id=order_id,
                 status=Payment.Status.CREATED,
             ).update(status=Payment.Status.FAILED)
 
     except Payment.DoesNotExist:
-        return JsonResponse({"error": "Unknown Razorpay order."}, status=404)
+        # Do not retry forever for an order that does not belong to this app.
+        return JsonResponse({"status": "ignored"})
     except (ValueError, json.JSONDecodeError):
         return JsonResponse({"error": "Invalid webhook payload."}, status=400)
 

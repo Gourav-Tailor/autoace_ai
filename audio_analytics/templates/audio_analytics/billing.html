@@ -87,10 +87,8 @@
     </div>
 </div>
 
-
 <script>
 (function () {
-    // Display-only FX rate. Razorpay checkout/payment remains INR.
     const USD_INR_RATE = Number("{{ billing.usd_inr_rate|default:'90' }}");
     const currencyKey = "audoack_billing_currency";
     const buttons = document.querySelectorAll(".currency-toggle");
@@ -136,6 +134,11 @@
     const csrfToken = "{{ csrf_token }}";
     const amountLabel = "Pay {{ billing.currency }} {{ billing.outstanding_total|floatformat:2 }}";
 
+    function resetButton() {
+        button.disabled = false;
+        button.textContent = amountLabel;
+    }
+
     button.addEventListener("click", async () => {
         button.disabled = true;
         button.textContent = "Creating order...";
@@ -150,7 +153,9 @@
             });
 
             const data = await response.json();
-            if (!response.ok) throw new Error(data.error || "Unable to create payment order.");
+            if (!response.ok) {
+                throw new Error(data.error || "Unable to create payment order.");
+            }
 
             const checkout = new Razorpay({
                 key: data.key_id,
@@ -159,23 +164,57 @@
                 name: "AudoAck",
                 description: "{{ period.label }} usage bill",
                 order_id: data.order_id,
-                handler: function () {
-                    message.textContent = "Payment submitted. The bill will update after Razorpay confirms the payment.";
-                    button.textContent = "Payment submitted";
+                handler: async function (response) {
+                    message.textContent = "Verifying payment...";
+                    button.textContent = "Verifying...";
+
+                    try {
+                        const verifyResponse = await fetch("{% url 'billing_verify_payment' %}", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "X-CSRFToken": csrfToken,
+                                "X-Requested-With": "XMLHttpRequest"
+                            },
+                            body: JSON.stringify({
+                                razorpay_order_id: response.razorpay_order_id,
+                                razorpay_payment_id: response.razorpay_payment_id,
+                                razorpay_signature: response.razorpay_signature
+                            })
+                        });
+
+                        const verifyData = await verifyResponse.json();
+                        if (!verifyResponse.ok) {
+                            throw new Error(
+                                verifyData.error || "Unable to verify payment."
+                            );
+                        }
+
+                        message.textContent =
+                            "Payment verified. Waiting for Razorpay confirmation...";
+                        button.textContent = "Payment verified";
+
+                        // Webhook remains the source of truth for PAID status.
+                        // Refresh after a short delay so the billing page reflects
+                        // the webhook without requiring the user to reload.
+                        setTimeout(() => window.location.reload(), 2500);
+                    } catch (error) {
+                        message.textContent = error.message;
+                        resetButton();
+                    }
                 }
             });
 
             checkout.on("payment.failed", function (response) {
-                message.textContent = response.error?.description || "Payment failed. Please try again.";
-                button.disabled = false;
-                button.textContent = amountLabel;
+                message.textContent =
+                    response.error?.description || "Payment failed. Please try again.";
+                resetButton();
             });
 
             checkout.open();
         } catch (error) {
             message.textContent = error.message;
-            button.disabled = false;
-            button.textContent = amountLabel;
+            resetButton();
         }
     });
 })();
