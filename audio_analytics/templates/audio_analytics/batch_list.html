@@ -13,13 +13,8 @@
 
     <form method="get" class="d-flex align-items-center gap-2">
         <label for="batch-page-size" class="text-muted small mb-0">Page size</label>
-        <select
-            id="batch-page-size"
-            name="page_size"
-            class="form-select form-select-sm"
-            onchange="this.form.submit()"
-            aria-label="Batches per page"
-        >
+        <select id="batch-page-size" name="page_size" class="form-select form-select-sm"
+                onchange="this.form.submit()" aria-label="Batches per page">
             {% for size in page_size_options %}
                 <option value="{{ size }}" {% if size == page_size %}selected{% endif %}>
                     {{ size }}
@@ -37,7 +32,7 @@
                 <thead class="table-light">
                     <tr>
                         <th>ID</th>
-                        <th>Archive Name</th>
+                        <th>Source / Device</th>
                         <th>Date Uploaded</th>
                         <th>Status</th>
                         <th>Action</th>
@@ -47,7 +42,13 @@
                     {% for batch in batches %}
                     <tr>
                         <td>#{{ batch.id }}</td>
-                        <td>{{ batch.zip_file.name|default:"—" }}</td>
+                        <td>
+                            {% if batch.device %}
+                                {{ batch.device.name }}
+                            {% else %}
+                                Batch Upload
+                            {% endif %}
+                        </td>
                         <td>{{ batch.uploaded_at|date:"Y-m-d H:i:s" }}</td>
                         <td>
                             <span class="badge {% if batch.status == 'completed' %}bg-success{% elif batch.status == 'failed' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
@@ -81,10 +82,10 @@
                 <ul class="pagination pagination-sm mb-0">
                     {% if page_obj.has_previous %}
                         <li class="page-item">
-                            <a class="page-link" href="?page=1&page_size={{ page_size }}" aria-label="First page">« First</a>
+                            <a class="page-link" href="?page=1&page_size={{ page_size }}">« First</a>
                         </li>
                         <li class="page-item">
-                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}&page_size={{ page_size }}" aria-label="Previous page">‹ Prev</a>
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}&page_size={{ page_size }}">‹ Prev</a>
                         </li>
                     {% else %}
                         <li class="page-item disabled"><span class="page-link">« First</span></li>
@@ -107,10 +108,10 @@
 
                     {% if page_obj.has_next %}
                         <li class="page-item">
-                            <a class="page-link" href="?page={{ page_obj.next_page_number }}&page_size={{ page_size }}" aria-label="Next page">Next ›</a>
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}&page_size={{ page_size }}">Next ›</a>
                         </li>
                         <li class="page-item">
-                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}&page_size={{ page_size }}" aria-label="Last page">Last »</a>
+                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}&page_size={{ page_size }}">Last »</a>
                         </li>
                     {% else %}
                         <li class="page-item disabled"><span class="page-link">Next ›</span></li>

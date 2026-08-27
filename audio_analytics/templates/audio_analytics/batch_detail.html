@@ -22,7 +22,6 @@
     </div>
 </div>
 <script>
-    // Auto-refresh page every 3 seconds until status changes to 'completed'
     setTimeout(function() {
         window.location.reload();
     }, 3000);
@@ -87,7 +86,6 @@
 </div>
 {% endif %}
 
-<!-- Current-page audio analysis graph -->
 <div class="card card-custom mb-4">
     <div class="card-body p-4">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
@@ -131,13 +129,8 @@
 
             <form method="get" class="d-flex align-items-center gap-2">
                 <label for="analysis-page-size" class="text-muted small mb-0">Page size</label>
-                <select
-                    id="analysis-page-size"
-                    name="page_size"
-                    class="form-select form-select-sm"
-                    onchange="this.form.submit()"
-                    aria-label="Audio analyses per page"
-                >
+                <select id="analysis-page-size" name="page_size" class="form-select form-select-sm"
+                        onchange="this.form.submit()" aria-label="Audio analyses per page">
                     {% for size in page_size_options %}
                         <option value="{{ size }}" {% if size == page_size %}selected{% endif %}>
                             {{ size }}
@@ -145,6 +138,8 @@
                     {% endfor %}
                 </select>
                 <input type="hidden" name="page" value="1">
+                <input type="hidden" name="sort" value="{{ sort_field }}">
+                <input type="hidden" name="direction" value="{{ sort_direction }}">
             </form>
         </div>
 
@@ -152,21 +147,32 @@
             <table class="table table-striped align-middle">
                 <thead class="table-light">
                     <tr>
-                        <th>Filename</th>
-                        <th>Tone</th>
-                        <th>Intensity</th>
-                        <th>Noise Present</th>
-                        <th>Noise Severity</th>
-                        <th>Audio Quality</th>
-                        <th>Overlap</th>
-                        <th>Silence</th>
-                        <th>Confidence</th>
+                        <th style="width: 70px;">S.No.</th>
+                        {% for column in sortable_columns %}
+                        <th>
+                            <a
+                                href="{{ column.url }}"
+                                class="text-decoration-none text-dark d-inline-flex align-items-center gap-1"
+                                aria-label="Sort by {{ column.label }}"
+                            >
+                                <span>{{ column.label }}</span>
+                                <span aria-hidden="true" class="small text-muted">
+                                    {% if column.active %}
+                                        {% if column.direction == "asc" %}↑{% else %}↓{% endif %}
+                                    {% else %}
+                                        ↕
+                                    {% endif %}
+                                </span>
+                            </a>
+                        </th>
+                        {% endfor %}
                         <th>Listen</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for analysis in analyses %}
                     <tr>
+                        <td>{{ page_obj.start_index|add:forloop.counter0 }}</td>
                         <td><code>{{ analysis.filename }}</code></td>
                         <td><span class="badge bg-info text-dark">{{ analysis.emotional_tone|default:"-" }}</span></td>
                         <td>{{ analysis.emotional_intensity|default:"-" }}</td>
@@ -184,16 +190,9 @@
                         <td><strong>{{ analysis.confidence|default:"0.0" }}</strong></td>
                         <td style="min-width: 240px;">
                             {% if analysis.audio_playback_url %}
-                                <audio
-                                    controls
-                                    preload="none"
-                                    class="w-100"
-                                    aria-label="Play {{ analysis.filename }}"
-                                >
-                                    <source
-                                        src="{{ analysis.audio_playback_url }}"
-                                        type="audio/wav"
-                                    >
+                                <audio controls preload="none" class="w-100"
+                                       aria-label="Play {{ analysis.filename }}">
+                                    <source src="{{ analysis.audio_playback_url }}" type="audio/wav">
                                     Your browser does not support audio playback.
                                 </audio>
                             {% else %}
@@ -203,7 +202,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="10" class="text-center text-muted py-4">
+                        <td colspan="11" class="text-center text-muted py-4">
                             No individual file records processed.
                         </td>
                     </tr>
@@ -218,15 +217,10 @@
                 <div class="small text-muted">
                     Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
                 </div>
-
                 <ul class="pagination pagination-sm mb-0">
                     {% if page_obj.has_previous %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page=1&page_size={{ page_size }}" aria-label="First page">« First</a>
-                        </li>
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}&page_size={{ page_size }}" aria-label="Previous page">‹ Prev</a>
-                        </li>
+                        <li class="page-item"><a class="page-link" href="{{ pagination_urls.first }}">« First</a></li>
+                        <li class="page-item"><a class="page-link" href="{{ pagination_urls.previous }}">‹ Prev</a></li>
                     {% else %}
                         <li class="page-item disabled"><span class="page-link">« First</span></li>
                         <li class="page-item disabled"><span class="page-link">‹ Prev</span></li>
@@ -234,25 +228,17 @@
 
                     {% for num in page_obj.paginator.page_range %}
                         {% if num == page_obj.number %}
-                            <li class="page-item active" aria-current="page">
-                                <span class="page-link">{{ num }}</span>
-                            </li>
+                            <li class="page-item active" aria-current="page"><span class="page-link">{{ num }}</span></li>
                         {% elif num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ num }}&page_size={{ page_size }}">{{ num }}</a>
-                            </li>
+                            <li class="page-item"><a class="page-link" href="?page={{ num }}&page_size={{ page_size }}&sort={{ sort_field }}&direction={{ sort_direction }}">{{ num }}</a></li>
                         {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}
                             <li class="page-item disabled"><span class="page-link">…</span></li>
                         {% endif %}
                     {% endfor %}
 
                     {% if page_obj.has_next %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ page_obj.next_page_number }}&page_size={{ page_size }}" aria-label="Next page">Next ›</a>
-                        </li>
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}&page_size={{ page_size }}" aria-label="Last page">Last »</a>
-                        </li>
+                        <li class="page-item"><a class="page-link" href="{{ pagination_urls.next }}">Next ›</a></li>
+                        <li class="page-item"><a class="page-link" href="{{ pagination_urls.last }}">Last »</a></li>
                     {% else %}
                         <li class="page-item disabled"><span class="page-link">Next ›</span></li>
                         <li class="page-item disabled"><span class="page-link">Last »</span></li>
@@ -271,11 +257,9 @@
 (function () {
     const dataElement = document.getElementById("analysis-chart-data");
     const canvas = document.getElementById("analysisWaveChart");
-
     if (!dataElement || !canvas) return;
 
     const records = JSON.parse(dataElement.textContent);
-
     const toneColors = {
         neutral: "#ffb43b",
         satisfied: "#2bb673",
@@ -309,35 +293,19 @@
                 y: {
                     beginAtZero: true,
                     max: 1,
-                    ticks: {
-                        callback: value => `${Math.round(value * 100)}%`
-                    },
-                    title: {
-                        display: true,
-                        text: "Confidence"
-                    }
+                    ticks: { callback: value => `${Math.round(value * 100)}%` },
+                    title: { display: true, text: "Confidence" }
                 },
                 x: {
-                    grid: {
-                        display: false
-                    },
-                    ticks: {
-                        maxRotation: 60,
-                        minRotation: 0,
-                        autoSkip: true,
-                        maxTicksLimit: 20
-                    }
+                    grid: { display: false },
+                    ticks: { maxRotation: 60, minRotation: 0, autoSkip: true, maxTicksLimit: 20 }
                 }
             },
             plugins: {
-                legend: {
-                    display: false
-                },
+                legend: { display: false },
                 tooltip: {
                     callbacks: {
-                        title: function (items) {
-                            return records[items[0].dataIndex].filename;
-                        },
+                        title: items => records[items[0].dataIndex].filename,
                         label: function (context) {
                             const item = records[context.dataIndex];
                             return [

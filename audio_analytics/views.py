@@ -3,6 +3,7 @@ import json
 import os
 import tempfile
 import uuid
+from urllib.parse import urlencode
 
 from django.contrib.auth import login
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -19,6 +20,20 @@ from .tasks import process_batch_upload_task
 
 PAGE_SIZE_OPTIONS = (10, 25, 50, 100)
 DEFAULT_PAGE_SIZE = 10
+
+# Only these model fields can be selected by the client for sorting.
+BATCH_DETAIL_SORT_FIELDS = {
+    "filename": "filename",
+    "tone": "emotional_tone",
+    "intensity": "emotional_intensity",
+    "noise": "background_noise_present",
+    "noise_severity": "background_noise_severity",
+    "quality": "audio_quality",
+    "overlap": "speaker_overlap_present",
+    "silence": "long_silence_present",
+    "confidence": "confidence",
+}
+DEFAULT_BATCH_DETAIL_SORT = "id"
 
 
 def get_page_size(request):
@@ -89,9 +104,6 @@ class BatchUploadView(LoginRequiredMixin, View):
                 status=400,
             )
 
-        # Save the upload to a temporary shared path for low-latency handoff.
-        # (which may run in a separate process/container) can read it by
-        # filesystem path rather than via the in-request file handle.
         temp_dir = tempfile.gettempdir()
         temp_zip_path = os.path.join(
             temp_dir, f"upload_{uuid.uuid4().hex}_{zip_file.name}"
@@ -100,11 +112,6 @@ class BatchUploadView(LoginRequiredMixin, View):
             for chunk in zip_file.chunks():
                 destination.write(chunk)
 
-        # Create the batch record. Its zip_file FileField is stored permanently
-        # in MinIO by the configured default storage backend.
-        # associated with the uploading user; re-open the temp file so the
-        # archive is also retained via the model's zip_file field for later
-        # reference.
         with open(temp_zip_path, "rb") as saved_zip:
             batch = BatchUpload.objects.create(
                 user=request.user,
@@ -112,10 +119,7 @@ class BatchUploadView(LoginRequiredMixin, View):
                 status=BatchUpload.Status.PROCESSING,
             )
 
-        # Dispatch async task to background worker.
         process_batch_upload_task.delay(batch.id, temp_zip_path)
-
-        # Immediately redirect user to batch details page.
         return redirect("batch_detail", pk=batch.pk)
 
 
@@ -132,7 +136,7 @@ class BatchListView(LoginRequiredMixin, ListView):
         qs = super().get_queryset()
         if not self.request.user.is_superuser:
             qs = qs.filter(user=self.request.user)
-        return qs.order_by("-uploaded_at", "-id")
+        return qs.select_related("device").order_by("-uploaded_at", "-id")
 
     def get_paginate_by(self, queryset):
         return get_page_size(self.request)
@@ -145,11 +149,7 @@ class BatchListView(LoginRequiredMixin, ListView):
 
 
 class BatchDetailView(LoginRequiredMixin, DetailView):
-    """Detail view showing paginated audio clip predictions and a graph for
-    exactly the analysis records displayed on the current page.
-
-    Non-superusers can only access batches they own (404 otherwise).
-    """
+    """Detail view with paginated, server-side sortable audio clip predictions."""
 
     model = BatchUpload
     template_name = "audio_analytics/batch_detail.html"
@@ -165,13 +165,31 @@ class BatchDetailView(LoginRequiredMixin, DetailView):
         context = super().get_context_data(**kwargs)
 
         page_size = get_page_size(self.request)
-        analyses_qs = self.object.analyses.all().order_by("-id")
+        sort_field = self.request.GET.get("sort", DEFAULT_BATCH_DETAIL_SORT)
+        if (
+            sort_field not in BATCH_DETAIL_SORT_FIELDS
+            and sort_field != DEFAULT_BATCH_DETAIL_SORT
+        ):
+            sort_field = DEFAULT_BATCH_DETAIL_SORT
+
+        sort_direction = self.request.GET.get("direction", "desc").lower()
+        if sort_direction not in {"asc", "desc"}:
+            sort_direction = "desc"
+
+        sort_expression = BATCH_DETAIL_SORT_FIELDS.get(sort_field, sort_field)
+        if sort_direction == "desc":
+            sort_expression = f"-{sort_expression}"
+
+        # ID is always the stable tie-breaker, so row order is deterministic.
+        if sort_field == "id":
+            analyses_qs = self.object.analyses.all().order_by(sort_expression)
+        else:
+            analyses_qs = self.object.analyses.all().order_by(sort_expression, "-id")
 
         paginator = Paginator(analyses_qs, page_size)
         page_number = self.request.GET.get("page", 1)
         analyses_page = paginator.get_page(page_number)
 
-        # Generate one browser-facing MinIO presigned URL per visible analysis.
         analyses = list(analyses_page.object_list)
         for analysis in analyses:
             analysis.audio_playback_url = (
@@ -183,10 +201,69 @@ class BatchDetailView(LoginRequiredMixin, DetailView):
         context["paginator"] = paginator
         context["page_size"] = page_size
         context["page_size_options"] = PAGE_SIZE_OPTIONS
+        context["sort_field"] = sort_field
+        context["sort_direction"] = sort_direction
 
-        # The graph intentionally uses ONLY the records visible on the
-        # current pagination page. This keeps the chart aligned with the
-        # table and avoids loading every analysis record for large batches.
+        sortable_columns = [
+            ("filename", "Filename"),
+            ("tone", "Tone"),
+            ("intensity", "Intensity"),
+            ("noise", "Noise Present"),
+            ("noise_severity", "Noise Severity"),
+            ("quality", "Audio Quality"),
+            ("overlap", "Overlap"),
+            ("silence", "Silence"),
+            ("confidence", "Confidence"),
+        ]
+
+        column_context = []
+        for key, label in sortable_columns:
+            active = key == sort_field
+            next_direction = "desc" if active and sort_direction == "asc" else "asc"
+            query = urlencode(
+                {
+                    "page": 1,
+                    "page_size": page_size,
+                    "sort": key,
+                    "direction": next_direction,
+                }
+            )
+            column_context.append(
+                {
+                    "key": key,
+                    "label": label,
+                    "active": active,
+                    "direction": sort_direction if active else None,
+                    "url": f"?{query}",
+                }
+            )
+        context["sortable_columns"] = column_context
+
+        def page_url(page):
+            return "?" + urlencode(
+                {
+                    "page": page,
+                    "page_size": page_size,
+                    "sort": sort_field,
+                    "direction": sort_direction,
+                }
+            )
+
+        context["pagination_urls"] = {
+            "first": page_url(1),
+            "previous": (
+                page_url(analyses_page.previous_page_number())
+                if analyses_page.has_previous()
+                else ""
+            ),
+            "next": (
+                page_url(analyses_page.next_page_number())
+                if analyses_page.has_next()
+                else ""
+            ),
+            "last": page_url(paginator.num_pages),
+        }
+
         chart_data = []
         for analysis in analyses_page.object_list:
             chart_data.append(
