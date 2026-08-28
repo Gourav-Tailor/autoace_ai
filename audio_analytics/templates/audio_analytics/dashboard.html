@@ -1,84 +1,116 @@
 {% extends 'audio_analytics/base.html' %}
 
-{% block title %}Dashboard - AudoAck AI{% endblock %}
+{% block title %}Dashboard — AudoAck AI{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2>Voice Tone & Noise Analytics</h2>
-    <span class="badge bg-success px-3 py-2">Production Cost: &lt; $0.003 / min</span>
+<div class="aa-page-header d-flex flex-wrap justify-content-between align-items-end gap-3">
+    <div>
+        <div class="aa-eyebrow mb-1">Workspace overview</div>
+        <h1 class="h2 fw-bold mb-1">Audio intelligence dashboard</h1>
+        <p class="text-muted mb-0">Monitor processing activity, review batches and run new analysis.</p>
+    </div>
+    <span class="badge text-bg-success px-3 py-2">Processing pipeline active</span>
 </div>
 
-<!-- Metrics Cards -->
 <div class="row g-3 mb-4">
     <div class="col-md-4">
-        <div class="card card-custom p-3 bg-primary text-white">
-            <h6 class="text-uppercase small">Total Audio Processed</h6>
-            <h3 class="fw-bold mb-0">{{ total_analyzed }}</h3>
+        <div class="card card-custom aa-metric h-100">
+            <div class="card-body p-4">
+                <div class="text-muted small text-uppercase fw-bold">Audio processed</div>
+                <div class="display-6 fw-bold mt-2">{{ total_analyzed }}</div>
+                <div class="small text-muted mt-1">Total analyzed recordings</div>
+            </div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card card-custom p-3 bg-white">
-            <h6 class="text-uppercase text-muted small">Recent Batches</h6>
-            <h3 class="fw-bold mb-0">{{ recent_batches.count }}</h3>
+        <div class="card card-custom aa-metric h-100">
+            <div class="card-body p-4">
+                <div class="text-muted small text-uppercase fw-bold">Recent batches</div>
+                <div class="display-6 fw-bold mt-2">{{ recent_batches.count }}</div>
+                <div class="small text-muted mt-1">Latest batch processing jobs</div>
+            </div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card card-custom p-3 bg-white">
-            <h6 class="text-uppercase text-muted small">Failed Clips</h6>
-            <h3 class="fw-bold text-danger mb-0">{{ failed_count }}</h3>
+        <div class="card card-custom aa-metric h-100">
+            <div class="card-body p-4">
+                <div class="text-muted small text-uppercase fw-bold">Failed clips</div>
+                <div class="display-6 fw-bold mt-2 {% if failed_count %}text-danger{% endif %}">{{ failed_count }}</div>
+                <div class="small text-muted mt-1">Items requiring attention</div>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Batch Upload Section -->
 <div class="card card-custom mb-4">
-    <div class="card-body p-4">
-        <h5 class="card-title fw-bold mb-3">Upload New Batch</h5>
-        <p class="text-muted small">Upload a <code>.zip</code> archive containing evaluation audio clips and <code>labels.csv</code> manifest.</p>
-
-        <form action="{% url 'batch_upload' %}" method="post" enctype="multipart/form-data" class="row g-3 align-items-center">
-            {% csrf_token %}
-            <div class="col-auto flex-grow-1">
-                <input class="form-control form-control-lg" type="file" name="zip_file" accept=".zip" required>
+    <div class="card-body p-4 p-lg-5">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+            <div>
+                <div class="aa-eyebrow mb-1">New analysis</div>
+                <h2 class="h4 fw-bold mb-1">Run a batch</h2>
+                <p class="text-muted mb-0">Upload a ZIP containing audio clips and the labels.csv manifest.</p>
             </div>
-            <div class="col-auto">
-                <button type="submit" class="btn btn-primary btn-lg px-4">Upload & Run Batch</button>
+            <span class="badge bg-light text-dark border">ZIP upload</span>
+        </div>
+
+        <form action="{% url 'batch_upload' %}" method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="aa-upload-zone">
+                <div class="row g-3 align-items-center">
+                    <div class="col-lg-8">
+                        <label for="dashboard-batch-file" class="form-label fw-bold">Evaluation archive</label>
+                        <input id="dashboard-batch-file" class="form-control" type="file"
+                               name="zip_file" accept=".zip" required>
+                        <div class="small text-muted mt-2">Your upload is queued and processed asynchronously.</div>
+                    </div>
+                    <div class="col-lg-4 d-grid">
+                        <button type="submit" class="btn btn-primary py-2">Upload &amp; run batch</button>
+                    </div>
+                </div>
             </div>
         </form>
     </div>
 </div>
 
-<!-- Recent Batches Table -->
 <div class="card card-custom">
     <div class="card-body p-4">
-        <h5 class="card-title fw-bold mb-3">Recent Batch Runs</h5>
+        <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+            <div>
+                <div class="aa-eyebrow mb-1">Activity</div>
+                <h2 class="h5 fw-bold mb-0">Recent batch runs</h2>
+            </div>
+            <a href="{% url 'batch_list' %}" class="btn btn-sm btn-outline-primary">View all</a>
+        </div>
+
         <div class="table-responsive">
-            <table class="table table-hover align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>Batch ID</th>
-                        <th>Uploaded At</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                <tr>
+                    <th>Batch</th>
+                    <th>Uploaded</th>
+                    <th>Status</th>
+                    <th class="text-end">Action</th>
+                </tr>
                 </thead>
                 <tbody>
-                    {% for batch in recent_batches %}
-                    <tr>
-                        <td><strong>Batch #{{ batch.id }}</strong></td>
-                        <td>{{ batch.uploaded_at|date:"M d, Y H:i" }}</td>
-                        <td>
-                            <span class="badge {% if batch.status == 'completed' %}bg-success{% elif batch.status == 'failed' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
-                                {{ batch.get_status_display }}
-                            </span>
-                        </td>
-                        <td>
-                            <a href="{% url 'batch_detail' batch.pk %}" class="btn btn-sm btn-outline-primary">View Results</a>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr><td colspan="4" class="text-center text-muted">No uploaded batches found.</td></tr>
-                    {% endfor %}
+                {% for batch in recent_batches %}
+                <tr>
+                    <td><strong>#{{ batch.id }}</strong></td>
+                    <td>{{ batch.uploaded_at|date:"M d, Y H:i" }}</td>
+                    <td>
+                        <span class="badge {% if batch.status == 'completed' %}bg-success{% elif batch.status == 'failed' %}bg-danger{% else %}bg-warning text-dark{% endif %}">
+                            {{ batch.get_status_display }}
+                        </span>
+                    </td>
+                    <td class="text-end">
+                        <a href="{% url 'batch_detail' batch.pk %}" class="btn btn-sm btn-outline-primary">Review</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="text-center text-muted py-5">No batch runs yet.</td>
+                </tr>
+                {% endfor %}
                 </tbody>
             </table>
         </div>

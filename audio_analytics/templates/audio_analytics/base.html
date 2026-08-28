@@ -8,80 +8,359 @@
     <link rel="icon" type="image/x-icon" href="{% static 'audio_analytics/favicon.ico' %}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; }
-        .sidebar { min-height: 100vh; background-color: #1e293b; color: #fff; }
-        .sidebar a {
-            color: #cbd5e1;
-            text-decoration: none;
-            padding: 10px 15px;
-            display: block;
-            border-radius: 6px;
+        :root {
+            --aa-primary: #2563eb;
+            --aa-primary-dark: #1d4ed8;
+            --aa-primary-soft: #eff6ff;
+            --aa-bg: #f6f8fb;
+            --aa-surface: #ffffff;
+            --aa-sidebar: #0f172a;
+            --aa-sidebar-hover: #1e293b;
+            --aa-text: #0f172a;
+            --aa-muted: #64748b;
+            --aa-border: #e2e8f0;
+            --aa-success: #16a34a;
+            --aa-warning: #d97706;
+            --aa-danger: #dc2626;
+            --aa-radius: 14px;
+            --aa-sidebar-width: 252px;
         }
-        .sidebar a:hover,
-        .sidebar a.active {
-            background-color: #334155;
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            background: var(--aa-bg);
+            color: var(--aa-text);
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 14px;
+        }
+
+        a { color: var(--aa-primary); }
+        a:hover { color: var(--aa-primary-dark); }
+
+        .container-fluid { padding: 0 !important; }
+        .container-fluid > .row { margin: 0 !important; }
+
+        .sidebar {
+            position: fixed;
+            inset: 0 auto 0 0;
+            width: var(--aa-sidebar-width);
+            min-height: 100vh !important;
+            z-index: 1030;
+            padding: 20px 14px !important;
+            background: var(--aa-sidebar) !important;
+            border-right: 1px solid #1e293b;
             color: #fff;
         }
-        .card-custom {
-            border: none;
+
+        .sidebar > h4 {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 4px 10px 24px;
+            margin: 0 !important;
+            font-size: 18px;
+            letter-spacing: -.02em;
+        }
+
+        .sidebar > h4::before {
+            content: "A";
+            width: 34px;
+            height: 34px;
+            display: grid;
+            place-items: center;
             border-radius: 10px;
-            box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+            background: var(--aa-primary);
+            color: #fff;
+            font-size: 16px;
+            font-weight: 800;
+        }
+
+        .sidebar nav {
+            gap: 4px !important;
+        }
+
+        .sidebar nav a,
+        .sidebar nav .nav-link {
+            display: flex;
+            align-items: center;
+            min-height: 42px;
+            padding: 10px 12px !important;
+            border-radius: 10px;
+            color: #94a3b8 !important;
+            font-weight: 600;
+            text-decoration: none;
+            transition: .15s ease;
+        }
+
+        .sidebar nav a::before,
+        .sidebar nav .nav-link::before {
+            content: "";
+            width: 7px;
+            height: 7px;
+            margin-right: 11px;
+            border-radius: 50%;
+            background: #475569;
+        }
+
+        .sidebar nav a:hover,
+        .sidebar nav a.active,
+        .sidebar nav .nav-link:hover {
+            background: var(--aa-sidebar-hover);
+            color: #fff !important;
+        }
+
+        .sidebar nav a.active::before {
+            background: #60a5fa;
+            box-shadow: 0 0 0 4px rgba(37,99,235,.18);
+        }
+
+        .sidebar .mt-auto {
+            padding: 16px 10px 4px !important;
+            border-color: #334155 !important;
+        }
+
+        .sidebar .btn-outline-light {
+            border-color: #334155;
+            color: #cbd5e1;
+            border-radius: 9px;
+        }
+
+        .sidebar .btn-outline-light:hover {
+            background: #1e293b;
+            color: #fff;
+        }
+
+        .sidebar + div {
+            margin-left: var(--aa-sidebar-width);
+            width: calc(100% - var(--aa-sidebar-width));
+            min-height: 100vh;
+            padding: 30px 34px !important;
+        }
+
+        .card,
+        .card-custom {
+            border: 1px solid var(--aa-border) !important;
+            border-radius: var(--aa-radius) !important;
+            background: var(--aa-surface);
+            box-shadow: 0 1px 2px rgba(15, 23, 42, .03) !important;
+        }
+
+        .card:hover {
+            box-shadow: 0 8px 24px rgba(15, 23, 42, .05) !important;
+        }
+
+        .card-header {
+            border-bottom: 1px solid var(--aa-border);
+            background: #fff !important;
+            color: var(--aa-text) !important;
+            border-radius: var(--aa-radius) var(--aa-radius) 0 0 !important;
+        }
+
+        .bg-primary { background-color: var(--aa-primary) !important; }
+        .btn-primary {
+            --bs-btn-bg: var(--aa-primary);
+            --bs-btn-border-color: var(--aa-primary);
+            --bs-btn-hover-bg: var(--aa-primary-dark);
+            --bs-btn-hover-border-color: var(--aa-primary-dark);
+            border-radius: 9px;
+            font-weight: 700;
+        }
+
+        .btn-outline-primary {
+            --bs-btn-color: var(--aa-primary);
+            --bs-btn-border-color: #bfdbfe;
+            --bs-btn-hover-bg: var(--aa-primary-soft);
+            --bs-btn-hover-color: var(--aa-primary-dark);
+            --bs-btn-hover-border-color: #93c5fd;
+            border-radius: 9px;
+            font-weight: 700;
+        }
+
+        .btn-success, .btn-danger, .btn-secondary, .btn-outline-secondary {
+            border-radius: 9px;
+            font-weight: 700;
+        }
+
+        .form-control,
+        .form-select {
+            border-color: #cbd5e1;
+            border-radius: 9px;
+            min-height: 40px;
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: #93c5fd;
+            box-shadow: 0 0 0 .2rem rgba(37,99,235,.10);
+        }
+
+        .table {
+            --bs-table-bg: transparent;
+            --bs-table-hover-bg: #f8fafc;
+            color: var(--aa-text);
+        }
+
+        .table thead th {
+            color: #64748b;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            font-weight: 800;
+            border-bottom-color: var(--aa-border);
+            white-space: nowrap;
+        }
+
+        .table td {
+            border-color: #eef2f7;
+            padding-top: 13px;
+            padding-bottom: 13px;
+        }
+
+        .badge {
+            border-radius: 999px;
+            padding: .45em .72em;
+            font-weight: 700;
+        }
+
+        .page-link {
+            color: var(--aa-primary);
+            border-color: var(--aa-border);
+            border-radius: 8px !important;
+            margin: 0 2px;
+        }
+
+        .page-item.active .page-link {
+            background: var(--aa-primary);
+            border-color: var(--aa-primary);
+        }
+
+        code {
+            color: #475569;
+            background: #f1f5f9;
+            padding: 2px 5px;
+            border-radius: 5px;
+        }
+
+        .aa-page-header {
+            margin-bottom: 24px;
+        }
+
+        .aa-page-header h1,
+        .aa-page-header h2,
+        .aa-page-header h3 {
+            letter-spacing: -.03em;
+        }
+
+        .aa-eyebrow {
+            color: var(--aa-primary);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .12em;
+            font-weight: 800;
+        }
+
+        .aa-upload-zone {
+            border: 1.5px dashed #bfdbfe;
+            border-radius: 12px;
+            background: #f8fbff;
+            padding: 28px;
+        }
+
+        .aa-metric {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .aa-metric::after {
+            content: "";
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            right: -42px;
+            top: -42px;
+            border-radius: 50%;
+            background: rgba(37,99,235,.06);
+        }
+
+        .text-muted { color: var(--aa-muted) !important; }
+
+        @media (max-width: 991.98px) {
+            :root { --aa-sidebar-width: 0px; }
+            .sidebar {
+                position: static;
+                width: 100%;
+                min-height: auto !important;
+            }
+            .sidebar + div {
+                margin-left: 0;
+                width: 100%;
+                padding: 22px 16px !important;
+            }
+            .sidebar nav {
+                display: grid !important;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .sidebar .mt-auto { margin-top: 14px !important; }
+        }
+
+        @media (max-width: 575.98px) {
+            .sidebar nav { grid-template-columns: 1fr; }
+            .sidebar + div { padding: 18px 12px !important; }
         }
     </style>
+    {% block extra_head %}{% endblock %}
 </head>
 <body>
-    <div class="container-fluid">
-        <div class="row">
-            {% if user.is_authenticated %}
-                <div class="col-md-2 sidebar p-3 d-flex flex-column">
-                    <h4 class="fw-bold mb-4 text-white">AudoAck AI</h4>
+<div class="container-fluid">
+    <div class="row">
+        {% if user.is_authenticated %}
+        <aside class="sidebar d-flex flex-column">
+            <h4 class="fw-bold text-white">AudoAck AI</h4>
 
-                    <nav class="nav flex-column gap-1">
-                        <a href="{% url 'dashboard' %}"
-                           class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
-                            Dashboard
-                        </a>
+            <nav class="nav flex-column">
+                <a href="{% url 'dashboard' %}"
+                   class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+                    Dashboard
+                </a>
+                <a href="{% url 'batch_list' %}"
+                   class="{% if request.resolver_match.url_name == 'batch_list' %}active{% endif %}">
+                    Batch Processing
+                </a>
+                <a href="{% url 'long_recorder' %}"
+                   class="{% if request.resolver_match.url_name == 'long_recorder' %}active{% endif %}">
+                    Live Recorder
+                </a>
+                <a href="{% url 'device_tokens' %}"
+                   class="{% if request.resolver_match.url_name == 'device_tokens' %}active{% endif %}">
+                    Device Tokens
+                </a>
+                <a href="{% url 'billing' %}"
+                   class="{% if request.resolver_match.url_name == 'billing' %}active{% endif %}">
+                    Billing
+                </a>
+            </nav>
 
-                        <a href="{% url 'batch_list' %}"
-                           class="{% if request.resolver_match.url_name == 'batch_list' %}active{% endif %}">
-                            Batch Processing
-                        </a>
-
-                        <li class="nav-item">
-                            <a class="nav-link" href="{% url 'long_recorder' %}">Live Recorder</a>
-                        </li>
-
-                        <li class="nav-item">
-                            <a class="nav-link" href="{% url 'device_tokens' %}">Device Tokens</a>
-                        </li>
-
-                        <a href="{% url 'billing' %}"
-                           class="{% if request.resolver_match.url_name == 'billing' %}active{% endif %}">
-                            Billing
-                        </a>
-                    </nav>
-
-                    <div class="mt-auto pt-3 border-top border-secondary">
-                        <div class="text-light small mb-2">
-                            Signed in as <strong>{{ user.username }}</strong>
-                        </div>
-
-                        <form action="{% url 'logout' %}" method="post">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-outline-light btn-sm w-100">
-                                Sign Out
-                            </button>
-                        </form>
-                    </div>
+            <div class="mt-auto pt-3 border-top border-secondary">
+                <div class="text-light small mb-2">
+                    <span class="text-secondary">Workspace</span><br>
+                    <strong>{{ user.username }}</strong>
                 </div>
-            {% endif %}
-
-            <div class="{% if user.is_authenticated %}col-md-10{% else %}col-12{% endif %} p-4">
-                {% block content %}{% endblock %}
+                <form action="{% url 'logout' %}" method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-light btn-sm w-100">Sign Out</button>
+                </form>
             </div>
-        </div>
-    </div>
+        </aside>
+        {% endif %}
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+        <main class="{% if user.is_authenticated %}col-12{% else %}col-12{% endif %}">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+{% block extra_scripts %}{% endblock %}
 </body>
 </html>
