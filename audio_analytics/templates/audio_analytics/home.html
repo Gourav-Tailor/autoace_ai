@@ -1,7 +1,8 @@
-{% extends 'audio_analytics/base.html' %}
+﻿{% extends 'audio_analytics/base.html' %}
 {% block title %}AudoAck AI — Audio intelligence for connected devices{% endblock %}
 {% block content %}
 <style>
+  .aa-brand-logo{width:34px;height:34px;border-radius:10px;display:block;object-fit:contain;flex:0 0 34px}
   .aa-page{background:#f8fafc;color:#0f172a}
   .aa-nav{background:rgba(255,255,255,.95);border-bottom:1px solid #e2e8f0;backdrop-filter:blur(12px)}
   .aa-brand{color:#0f172a;text-decoration:none;font-weight:800;letter-spacing:-.03em}
@@ -44,7 +45,7 @@
     <div class="container py-2" style="max-width:1180px">
       <div class="d-flex align-items-center justify-content-between">
         <a class="aa-brand d-flex align-items-center gap-2" href="{% url 'home' %}">
-          <span class="aa-mark">A</span><span>AudoAck AI</span>
+          <img class="aa-brand-logo" src="{% static 'audio_analytics/images/audoack-logo.png' %}" alt="AudoAck AI logo"><span>AudoAck AI</span>
         </a>
         <div class="d-flex align-items-center gap-4">
           <a class="aa-nav-link" href="#platform">Platform</a>
