@@ -37,7 +37,7 @@ let activeBatchId = null;
 let chunkIndex = 0;
 let timerInterval;
 let startTime;
-let lastChunkUpload = Promise.resolve();
+let chunkUploadQueue = Promise.resolve();
 let recorderStopped = Promise.resolve();
 
 const startBtn = document.getElementById('startRecBtn');
@@ -90,16 +90,17 @@ startBtn.addEventListener('click', async () => {
         });
 
         mediaRecorder.ondataavailable = (e) => {
-            if (e.data.size > 0 && activeBatchId) {
-                const index = chunkIndex;
-                chunkIndex++;
-                // Track this upload so 'stop' handling can wait for the
-                // final (possibly still in-flight) chunk before finalizing.
-                lastChunkUpload = uploadChunk(e.data, index).then(() => {
-                    chunkCounter.textContent = `Chunks Uploaded: ${chunkIndex}`;
-                });
-            }
-        };
+    if (e.data.size > 0 && activeBatchId) {
+        const index = chunkIndex++;
+        const blob = e.data;
+
+        // Queue every upload. Only one chunk is uploaded at a time.
+        chunkUploadQueue = chunkUploadQueue.then(async () => {
+            await uploadChunk(blob, index);
+            chunkCounter.textContent = `Chunks Uploaded: ${index + 1}`;
+        });
+    }
+};
 
         mediaRecorder.start(5000); // Send chunk every 5 seconds
 
@@ -119,10 +120,29 @@ async function uploadChunk(blob, index) {
     formData.append('action', 'upload_chunk');
     formData.append('batch_id', activeBatchId);
     formData.append('index', index);
-    formData.append('chunk_data', blob, `chunk_${index}.wav`);
+    formData.append('chunk_data', blob, `chunk_${index}.webm`);
     formData.append('csrfmiddlewaretoken', getCSRFToken());
 
-    await fetch('{% url "long_recorder_api" %}', { method: 'POST', body: formData });
+    const response = await fetch('{% url "long_recorder_api" %}', {
+        method: 'POST',
+        body: formData
+    });
+
+    if (!response.ok) {
+        let message = `Chunk ${index} upload failed (${response.status})`;
+        try {
+            const data = await response.json();
+            if (data.error) message = data.error;
+        } catch (_) {}
+        throw new Error(message);
+    }
+
+    const data = await response.json();
+    if (data.status !== 'chunk_saved') {
+        throw new Error(data.error || `Chunk ${index} was not saved.`);
+    }
+
+    return data;
 }
 
 stopBtn.addEventListener('click', async () => {
@@ -139,12 +159,13 @@ stopBtn.addEventListener('click', async () => {
     mediaRecorder.stream.getTracks().forEach(track => track.stop());
 
     await recorderStopped;
-    await lastChunkUpload;
+    await chunkUploadQueue;
 
     // Step 3: Finalize Batch Session
     const formData = new FormData();
     formData.append('action', 'finalize');
     formData.append('batch_id', activeBatchId);
+    formData.append('expected_chunks', chunkIndex);
     formData.append('csrfmiddlewaretoken', getCSRFToken());
 
     const response = await fetch('{% url "long_recorder_api" %}', { method: 'POST', body: formData });

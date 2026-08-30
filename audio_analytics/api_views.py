@@ -70,9 +70,20 @@ class LongRecorderBatchView(View):
                 chunk_index = request.POST.get("index")
                 audio_file = request.FILES.get("chunk_data")
 
+                try:
+                    chunk_number = int(chunk_index)
+                    if chunk_number < 0:
+                        raise ValueError
+                except (TypeError, ValueError):
+                    return JsonResponse(
+                        {"error": "Invalid chunk index"},
+                        status=400,
+                    )
+
                 if not batch_id or not audio_file:
                     return JsonResponse(
-                        {"error": "Missing batch_id or audio content"}, status=400
+                        {"error": "Missing batch_id or audio content"},
+                        status=400,
                     )
 
                 chunk_dir = os.path.join(
@@ -85,9 +96,9 @@ class LongRecorderBatchView(View):
                 # retry -- can never collide on the same temp path and delete each
                 # other's file mid-conversion.
                 raw_path = os.path.join(
-                    chunk_dir, f"temp_{chunk_index}_{uuid.uuid4().hex}.webm"
+                    chunk_dir, f"temp_{chunk_number}_{uuid.uuid4().hex}.webm"
                 )
-                wav_path = os.path.join(chunk_dir, f"chunk_{int(chunk_index):04d}.wav")
+                wav_path = os.path.join(chunk_dir, f"chunk_{chunk_number:04d}.wav")
 
                 # Save raw browser chunk
                 with open(raw_path, "wb+") as dst:
@@ -107,10 +118,18 @@ class LongRecorderBatchView(View):
                     sound = AudioSegment.from_file(raw_path)
                     sound = sound.set_frame_rate(16000).set_channels(1)
                     sound.export(wav_path, format="wav")
-                except Exception:
-                    # Fallback copy if pydub/ffmpeg is not present
+                except Exception as conversion_error:
                     if os.path.exists(raw_path):
-                        os.rename(raw_path, wav_path)
+                        os.remove(raw_path)
+                    return JsonResponse(
+                        {
+                            "error": (
+                                f"Failed to convert chunk {chunk_number}: "
+                                f"{conversion_error}"
+                            )
+                        },
+                        status=500,
+                    )
                 finally:
                     if os.path.exists(raw_path):
                         os.remove(raw_path)
@@ -118,7 +137,7 @@ class LongRecorderBatchView(View):
                 return JsonResponse(
                     {
                         "status": "chunk_saved",
-                        "filename": f"chunk_{int(chunk_index):04d}.wav",
+                        "filename": f"chunk_{chunk_number:04d}.wav",
                     }
                 )
 
@@ -144,6 +163,33 @@ class LongRecorderBatchView(View):
                         {"error": "No recorded audio chunks found on server"},
                         status=400,
                     )
+
+                try:
+                    expected_chunks = int(request.POST.get("expected_chunks", "0"))
+                except (TypeError, ValueError):
+                    return JsonResponse(
+                        {"error": "Invalid expected chunk count"},
+                        status=400,
+                    )
+
+                wav_files = sorted(
+                    f for f in os.listdir(chunk_dir) if f.lower().endswith(".wav")
+                )
+
+                if expected_chunks > 0:
+                    expected_files = {
+                        f"chunk_{index:04d}.wav" for index in range(expected_chunks)
+                    }
+                    missing_files = sorted(expected_files - set(wav_files))
+
+                    if missing_files:
+                        return JsonResponse(
+                            {
+                                "error": "Not all audio chunks reached the server.",
+                                "missing_chunks": missing_files,
+                            },
+                            status=409,
+                        )
 
                 zip_path = os.path.join(
                     tempfile.gettempdir(), f"batch_{batch_id}_audio.zip"
