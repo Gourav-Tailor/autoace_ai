@@ -227,43 +227,6 @@
             .sidebar nav { display: grid !important; grid-template-columns: 1fr; }
             main { padding: 18px 12px !important; }
         }
-        .aa-authenticated main {
-            margin-left: var(--aa-sidebar-collapsed-width);
-            width: calc(100% - var(--aa-sidebar-collapsed-width));
-        }
-
-        .aa-authenticated .sidebar {
-            box-shadow: 12px 0 30px rgba(15,23,42,.12);
-        }
-
-        .sidebar nav a::before,
-        .sidebar nav .nav-link::before {
-            display: none !important;
-        }
-
-        .sidebar nav .aa-nav-icon {
-            width: 22px;
-            min-width: 22px;
-            margin-right: 10px;
-            text-align: center;
-            font-size: 16px;
-            line-height: 1;
-        }
-
-        .sidebar-collapsed .sidebar nav .aa-nav-icon {
-            width: 100%;
-            min-width: 0;
-            margin-right: 0;
-            font-size: 18px;
-        }
-
-        @media (max-width: 991.98px) {
-            .aa-authenticated main,
-            main {
-                margin-left: 0 !important;
-                width: 100% !important;
-            }
-        }
         .sidebar-logo {
             display: block;
             flex: 0 0 34px;
@@ -275,6 +238,92 @@
             object-position: center;
             border-radius: 10px;
         }
+        :root {
+            --aa-sidebar-collapsed-width: 76px;
+            --aa-sidebar-expanded-width: 260px;
+        }
+        .aa-authenticated main {
+            margin-left: var(--aa-sidebar-collapsed-width) !important;
+            width: calc(100% - var(--aa-sidebar-collapsed-width)) !important;
+        }
+        .aa-authenticated .sidebar {
+            width: var(--aa-sidebar-collapsed-width);
+            overflow: visible;
+            z-index: 1050;
+            transition: width .2s ease;
+        }
+        .aa-authenticated .sidebar:hover,
+        .aa-authenticated .sidebar:focus-within,
+        .aa-authenticated .sidebar.aa-sidebar-expanded {
+            width: var(--aa-sidebar-expanded-width);
+        }
+        .aa-authenticated .sidebar nav a::before,
+        .aa-authenticated .sidebar nav .nav-link::before {
+            display: none !important;
+        }
+        .aa-authenticated .sidebar .sidebar-logo {
+            width: 34px !important;
+            height: 34px !important;
+            max-width: 34px !important;
+            max-height: 34px !important;
+            object-fit: contain;
+            flex: 0 0 34px;
+        }
+        .aa-authenticated .sidebar .aa-nav-icon {
+            width: 22px;
+            min-width: 22px;
+            margin-right: 10px;
+            text-align: center;
+            font-size: 16px;
+        }
+        .aa-authenticated .sidebar .aa-nav-text {
+            white-space: nowrap;
+        }
+        .aa-authenticated .sidebar:not(:hover):not(:focus-within):not(.aa-sidebar-expanded) .aa-nav-text {
+            display: none;
+        }
+        .aa-authenticated .sidebar:not(:hover):not(:focus-within):not(.aa-sidebar-expanded) nav a {
+            justify-content: center;
+        }
+        .aa-authenticated .sidebar .aa-sidebar-control {
+            position: absolute;
+            top: 7px;
+            left: 48px;
+            width: 20px;
+            height: 20px;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+        .aa-authenticated .sidebar .aa-sidebar-control .bi {
+            font-size: 12px;
+        }
+        .aa-authenticated .sidebar:hover .aa-sidebar-control,
+        .aa-authenticated .sidebar:focus-within .aa-sidebar-control,
+        .aa-authenticated .sidebar.aa-sidebar-expanded .aa-sidebar-control {
+            left: 232px;
+        }
+        .aa-authenticated .sidebar .aa-signout {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+        }
+        .aa-authenticated .sidebar:hover .aa-signout,
+        .aa-authenticated .sidebar:focus-within .aa-signout,
+        .aa-authenticated .sidebar.aa-sidebar-expanded .aa-signout {
+            justify-content: flex-start;
+        }
+        @media (max-width: 991.98px) {
+            .aa-authenticated main {
+                margin-left: var(--aa-sidebar-collapsed-width) !important;
+                width: calc(100% - var(--aa-sidebar-collapsed-width)) !important;
+            }
+        }
     </style>
     {% block extra_head %}{% endblock %}
 </head>
@@ -284,13 +333,13 @@
         {% if user.is_authenticated %}
         <aside class="sidebar d-flex flex-column" id="aa-sidebar">
             <h4 class="fw-bold text-white"><img class="sidebar-logo" src="{% static 'audio_analytics/images/audoack-logo.png' %}" alt="AudoAck AI logo"><span>AudoAck AI</span></h4>
-            <button type="button" class="sidebar-toggle" id="aa-sidebar-toggle" aria-label="Collapse sidebar" aria-expanded="true"><i class="bi bi-chevron-left" aria-hidden="true"></i></button>
+            <button type="button" class="aa-sidebar-control" id="aa-sidebar-toggle" aria-label="Expand sidebar" aria-expanded="false" title="Hover to expand"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
             <nav class="nav flex-column">
-                <a href="{% url 'dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"><i class="bi bi-grid-1x2-fill aa-nav-icon" aria-hidden="true"></i><span>Dashboard</span></a>
-                <a href="{% url 'batch_list' %}" class="{% if request.resolver_match.url_name == 'batch_list' %}active{% endif %}"><i class="bi bi-collection-play-fill aa-nav-icon" aria-hidden="true"></i><span>Batch Processing</span></a>
-                <a href="{% url 'long_recorder' %}" class="{% if request.resolver_match.url_name == 'long_recorder' %}active{% endif %}"><i class="bi bi-mic-fill aa-nav-icon" aria-hidden="true"></i><span>Live Recorder</span></a>
-                <a href="{% url 'device_tokens' %}" class="{% if request.resolver_match.url_name == 'device_tokens' %}active{% endif %}"><i class="bi bi-key-fill aa-nav-icon" aria-hidden="true"></i><span>Device Tokens</span></a>
-                <a href="{% url 'billing' %}" class="{% if request.resolver_match.url_name == 'billing' %}active{% endif %}"><i class="bi bi-credit-card-fill aa-nav-icon" aria-hidden="true"></i><span>Billing</span></a>
+                <a href="{% url 'dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"><i class="bi bi-grid-1x2-fill aa-nav-icon" aria-hidden="true"></i><span class="aa-nav-text">Dashboard</span></a>
+                <a href="{% url 'batch_list' %}" class="{% if request.resolver_match.url_name == 'batch_list' %}active{% endif %}"><i class="bi bi-collection-play-fill aa-nav-icon" aria-hidden="true"></i><span class="aa-nav-text">Batch Processing</span></a>
+                <a href="{% url 'long_recorder' %}" class="{% if request.resolver_match.url_name == 'long_recorder' %}active{% endif %}"><i class="bi bi-mic-fill aa-nav-icon" aria-hidden="true"></i><span class="aa-nav-text">Live Recorder</span></a>
+                <a href="{% url 'device_tokens' %}" class="{% if request.resolver_match.url_name == 'device_tokens' %}active{% endif %}"><i class="bi bi-key-fill aa-nav-icon" aria-hidden="true"></i><span class="aa-nav-text">Device Tokens</span></a>
+                <a href="{% url 'billing' %}" class="{% if request.resolver_match.url_name == 'billing' %}active{% endif %}"><i class="bi bi-credit-card-fill aa-nav-icon" aria-hidden="true"></i><span class="aa-nav-text">Billing</span></a>
             </nav>
             <div class="mt-auto pt-3 border-top border-secondary">
                 <div class="text-light small mb-2">
@@ -299,11 +348,11 @@
                 </div>
                 <form action="{% url 'logout' %}" method="post">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-outline-light btn-sm w-100"><i class="bi bi-box-arrow-right me-1" aria-hidden="true"></i>Sign Out</button>
+                    <button type="submit" class="btn btn-outline-light btn-sm w-100"><i class="bi bi-box-arrow-right me-1" aria-hidden="true"></i><i class="bi bi-box-arrow-right aa-nav-icon" aria-hidden="true"></i><span class="aa-nav-text">Sign Out</span></button>
                 </form>
             </div>
         </aside>
-        <button type="button" class="sidebar-open-button" id="aa-sidebar-open" aria-label="Open sidebar"><i class="bi bi-list" aria-hidden="true"></i></button>
+
         {% endif %}
         <main>
             {% block content %}{% endblock %}
@@ -342,5 +391,36 @@
 })();
 </script>
 {% block extra_scripts %}{% endblock %}
+<script>
+/* AudoAck sidebar v8 */
+(function () {
+    "use strict";
+    function initSidebar() {
+        var sidebar=document.querySelector(".sidebar");
+        var toggle=document.getElementById("aa-sidebar-toggle");
+        if(!sidebar)return;
+        sidebar.classList.remove("aa-sidebar-expanded");
+        function sync(){
+            var expanded=sidebar.matches(":hover")||sidebar.matches(":focus-within")||sidebar.classList.contains("aa-sidebar-expanded");
+            if(toggle){
+                toggle.setAttribute("aria-expanded",expanded?"true":"false");
+                toggle.setAttribute("aria-label",expanded?"Collapse sidebar":"Expand sidebar");
+            }
+        }
+        sidebar.addEventListener("mouseenter",sync);
+        sidebar.addEventListener("mouseleave",sync);
+        sidebar.addEventListener("focusin",sync);
+        sidebar.addEventListener("focusout",function(){setTimeout(sync,0);});
+        if(toggle)toggle.addEventListener("click",function(e){
+            e.preventDefault();
+            sidebar.classList.toggle("aa-sidebar-expanded");
+            sync();
+        });
+        sync();
+    }
+    if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",initSidebar);
+    else initSidebar();
+})();
+</script>
 </body>
 </html>

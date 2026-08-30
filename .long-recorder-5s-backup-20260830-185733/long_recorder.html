@@ -8,7 +8,7 @@
             <span class="badge bg-success">Auto-Chunking Enabled</span>
         </div>
         <div class="card-body text-center p-4">
-            <p class="text-muted">Record continuous audio for minutes or hours. Audio is automatically split into 5-second batch chunks and processed asynchronously upon completion.</p>
+            <p class="text-muted">Record continuous audio for minutes or hours. Audio is automatically split into 30-second batch chunks and processed asynchronously upon completion.</p>
 
             <div class="mb-3 text-start">
                 <label class="form-label fw-bold">Session Title:</label>
@@ -101,7 +101,7 @@ startBtn.addEventListener('click', async () => {
             }
         };
 
-        mediaRecorder.start(5000); // Send chunk every 5 seconds
+        mediaRecorder.start(30000); // Send chunk every 30 seconds
 
         // UI Controls & Timer
         startBtn.classList.add('d-none');
