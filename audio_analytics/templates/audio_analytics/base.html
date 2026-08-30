@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -7,6 +7,7 @@
     {% load static %}
     <link rel="icon" type="image/png" href="{% static 'audio_analytics/images/audoack-logo.png' %}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <style>
         :root {
             --aa-primary: #2563eb;
@@ -63,17 +64,6 @@
             font-size: 18px;
             letter-spacing: -.02em;
             white-space: nowrap;
-        }
-        .sidebar-logo {
-            display: block;
-            flex: 0 0 34px;
-            width: 34px;
-            height: 34px;
-            max-width: 34px;
-            max-height: 34px;
-            object-fit: contain;
-            object-position: center;
-            border-radius: 10px;
         }
         .sidebar nav { gap: 4px !important; }
         .sidebar nav a,
@@ -161,17 +151,6 @@
             margin-left: 0;
             padding: 30px 34px !important;
         }
-        .sidebar-logo {
-            display: block;
-            flex: 0 0 34px;
-            width: 34px;
-            height: 34px;
-            max-width: 34px;
-            max-height: 34px;
-            object-fit: contain;
-            object-position: center;
-            border-radius: 10px;
-        }
         .sidebar-collapsed .sidebar > h4 span {
             display: none;
         }
@@ -244,6 +223,47 @@
             .sidebar-open-button { display: grid; }
             .sidebar-collapsed .sidebar-open-button { display: grid; }
         }
+        @media (max-width: 575.98px) {
+            .sidebar nav { display: grid !important; grid-template-columns: 1fr; }
+            main { padding: 18px 12px !important; }
+        }
+        .aa-authenticated main {
+            margin-left: var(--aa-sidebar-collapsed-width);
+            width: calc(100% - var(--aa-sidebar-collapsed-width));
+        }
+
+        .aa-authenticated .sidebar {
+            box-shadow: 12px 0 30px rgba(15,23,42,.12);
+        }
+
+        .sidebar nav a::before,
+        .sidebar nav .nav-link::before {
+            display: none !important;
+        }
+
+        .sidebar nav .aa-nav-icon {
+            width: 22px;
+            min-width: 22px;
+            margin-right: 10px;
+            text-align: center;
+            font-size: 16px;
+            line-height: 1;
+        }
+
+        .sidebar-collapsed .sidebar nav .aa-nav-icon {
+            width: 100%;
+            min-width: 0;
+            margin-right: 0;
+            font-size: 18px;
+        }
+
+        @media (max-width: 991.98px) {
+            .aa-authenticated main,
+            main {
+                margin-left: 0 !important;
+                width: 100% !important;
+            }
+        }
         .sidebar-logo {
             display: block;
             flex: 0 0 34px;
@@ -255,26 +275,22 @@
             object-position: center;
             border-radius: 10px;
         }
-        @media (max-width: 575.98px) {
-            .sidebar nav { display: grid !important; grid-template-columns: 1fr; }
-            main { padding: 18px 12px !important; }
-        }
     </style>
     {% block extra_head %}{% endblock %}
 </head>
-<body>
+<body class="{% if user.is_authenticated %}aa-authenticated{% endif %}">
 <div class="container-fluid">
     <div class="row">
         {% if user.is_authenticated %}
         <aside class="sidebar d-flex flex-column" id="aa-sidebar">
             <h4 class="fw-bold text-white"><img class="sidebar-logo" src="{% static 'audio_analytics/images/audoack-logo.png' %}" alt="AudoAck AI logo"><span>AudoAck AI</span></h4>
-            <button type="button" class="sidebar-toggle" id="aa-sidebar-toggle" aria-label="Collapse sidebar" aria-expanded="true">â€¹</button>
+            <button type="button" class="sidebar-toggle" id="aa-sidebar-toggle" aria-label="Collapse sidebar" aria-expanded="true"><i class="bi bi-chevron-left" aria-hidden="true"></i></button>
             <nav class="nav flex-column">
-                <a href="{% url 'dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Dashboard</a>
-                <a href="{% url 'batch_list' %}" class="{% if request.resolver_match.url_name == 'batch_list' %}active{% endif %}">Batch Processing</a>
-                <a href="{% url 'long_recorder' %}" class="{% if request.resolver_match.url_name == 'long_recorder' %}active{% endif %}">Live Recorder</a>
-                <a href="{% url 'device_tokens' %}" class="{% if request.resolver_match.url_name == 'device_tokens' %}active{% endif %}">Device Tokens</a>
-                <a href="{% url 'billing' %}" class="{% if request.resolver_match.url_name == 'billing' %}active{% endif %}">Billing</a>
+                <a href="{% url 'dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"><i class="bi bi-grid-1x2-fill aa-nav-icon" aria-hidden="true"></i><span>Dashboard</span></a>
+                <a href="{% url 'batch_list' %}" class="{% if request.resolver_match.url_name == 'batch_list' %}active{% endif %}"><i class="bi bi-collection-play-fill aa-nav-icon" aria-hidden="true"></i><span>Batch Processing</span></a>
+                <a href="{% url 'long_recorder' %}" class="{% if request.resolver_match.url_name == 'long_recorder' %}active{% endif %}"><i class="bi bi-mic-fill aa-nav-icon" aria-hidden="true"></i><span>Live Recorder</span></a>
+                <a href="{% url 'device_tokens' %}" class="{% if request.resolver_match.url_name == 'device_tokens' %}active{% endif %}"><i class="bi bi-key-fill aa-nav-icon" aria-hidden="true"></i><span>Device Tokens</span></a>
+                <a href="{% url 'billing' %}" class="{% if request.resolver_match.url_name == 'billing' %}active{% endif %}"><i class="bi bi-credit-card-fill aa-nav-icon" aria-hidden="true"></i><span>Billing</span></a>
             </nav>
             <div class="mt-auto pt-3 border-top border-secondary">
                 <div class="text-light small mb-2">
@@ -283,11 +299,11 @@
                 </div>
                 <form action="{% url 'logout' %}" method="post">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-outline-light btn-sm w-100">Sign Out</button>
+                    <button type="submit" class="btn btn-outline-light btn-sm w-100"><i class="bi bi-box-arrow-right me-1" aria-hidden="true"></i>Sign Out</button>
                 </form>
             </div>
         </aside>
-        <button type="button" class="sidebar-open-button" id="aa-sidebar-open" aria-label="Open sidebar">â˜°</button>
+        <button type="button" class="sidebar-open-button" id="aa-sidebar-open" aria-label="Open sidebar"><i class="bi bi-list" aria-hidden="true"></i></button>
         {% endif %}
         <main>
             {% block content %}{% endblock %}

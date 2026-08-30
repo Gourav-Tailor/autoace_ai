@@ -1,4 +1,4 @@
-﻿{% extends 'audio_analytics/base.html' %}
+{% extends 'audio_analytics/base.html' %}
 {% load static %}
 {% block title %}AudoAck AI — Audio intelligence for connected devices{% endblock %}
 {% block content %}
@@ -81,7 +81,7 @@
             {% endif %}
           </div>
           <div class="d-flex flex-wrap gap-4 mt-4 small aa-muted-white">
-            <span>✓ Android capture</span><span>✓ Device-aware results</span><span>✓ Browser dashboard</span>
+            <span><i class="bi bi-check2" aria-hidden="true"></i> Android capture</span><span><i class="bi bi-check2" aria-hidden="true"></i> Device-aware results</span><span><i class="bi bi-check2" aria-hidden="true"></i> Browser dashboard</span>
           </div>
         </div>
 
@@ -106,7 +106,7 @@
                 </div>
               </div>
             </div>
-            <div class="small text-white-50 mt-3">Capture → upload → analyze → review</div>
+            <div class="small text-white-50 mt-3">Capture <i class="bi bi-arrow-right" aria-hidden="true"></i> upload <i class="bi bi-arrow-right" aria-hidden="true"></i> analyze <i class="bi bi-arrow-right" aria-hidden="true"></i> review</div>
           </div>
         </div>
       </div>
@@ -156,7 +156,7 @@
             </div>
           </div>
         </div>
-        <div class="col-lg-5"><div class="aa-dark p-4 p-lg-5 h-100"><div class="small text-white-50">Built for iteration</div><h3 class="fw-bold my-3">Start with audio. Build from the data.</h3><p class="text-white-50">Try the public analyzer, then sign in to work with your recordings, batches and devices.</p><a class="btn btn-light mt-2" href="{% url 'public_demo' %}">Open live demo →</a></div></div>
+        <div class="col-lg-5"><div class="aa-dark p-4 p-lg-5 h-100"><div class="small text-white-50">Built for iteration</div><h3 class="fw-bold my-3">Start with audio. Build from the data.</h3><p class="text-white-50">Try the public analyzer, then sign in to work with your recordings, batches and devices.</p><a class="btn btn-light mt-2" href="{% url 'public_demo' %}">Open live demo <i class="bi bi-arrow-right" aria-hidden="true"></i></a></div></div>
       </div>
     </section>
 
@@ -208,7 +208,7 @@
           <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">Sign in</button>
         </form>
         <div class="text-center mt-3 small text-muted">Don't have an account? <a href="{% url 'signup' %}">Create an account</a></div>
-        <div class="text-center mt-2"><a class="small text-decoration-none" href="{% url 'public_demo' %}">Try the live demo without signing in →</a></div>
+        <div class="text-center mt-2"><a class="small text-decoration-none" href="{% url 'public_demo' %}">Try the live demo without signing in <i class="bi bi-arrow-right" aria-hidden="true"></i></a></div>
       </div>
     </div>
   </div>
