@@ -73,9 +73,17 @@ async function postForm(url, formData) {
     method: 'POST',
     body: formData,
     credentials: 'same-origin',
+    headers: {
+      'X-CSRFToken': csrfToken(),
+    },
   });
+
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+
+  if (!response.ok) {
+    throw new Error(data.error || `Request failed (${response.status})`);
+  }
+
   return data;
 }
 
