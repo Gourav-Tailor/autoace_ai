@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -58,24 +58,22 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 4px 10px 24px;
+            padding: 4px 48px 12px 10px;
             margin: 0 !important;
             font-size: 18px;
             letter-spacing: -.02em;
             white-space: nowrap;
         }
-        .sidebar > h4::before {
-            content: "A";
+        .sidebar-logo {
+            display: block;
             flex: 0 0 34px;
             width: 34px;
             height: 34px;
-            display: grid;
-            place-items: center;
+            max-width: 34px;
+            max-height: 34px;
+            object-fit: contain;
+            object-position: center;
             border-radius: 10px;
-            background: var(--aa-primary);
-            color: #fff;
-            font-size: 16px;
-            font-weight: 800;
         }
         .sidebar nav { gap: 4px !important; }
         .sidebar nav a,
@@ -142,7 +140,11 @@
         }
         .sidebar-toggle:hover { background: #334155; color: #fff; }
         .sidebar-collapsed .sidebar { width: var(--aa-sidebar-collapsed-width); }
-        .sidebar-collapsed .sidebar > h4 { padding-left: 7px; padding-right: 42px; }
+        .sidebar-collapsed .sidebar > h4 {
+            justify-content: center;
+            padding-left: 0;
+            padding-right: 32px;
+        }
         .sidebar-collapsed .sidebar > h4 { font-size: 0; }
         .sidebar-collapsed .sidebar nav a,
         .sidebar-collapsed .sidebar nav .nav-link { justify-content: center; padding-left: 0 !important; padding-right: 0 !important; font-size: 0; }
@@ -156,17 +158,22 @@
         main {
             width: 100%;
             min-height: 100vh;
-            margin-left: var(--aa-sidebar-width);
+            margin-left: 0;
             padding: 30px 34px !important;
-            transition: margin-left .2s ease, width .2s ease;
+        }
+        .sidebar-logo {
+            display: block;
+            flex: 0 0 34px;
+            width: 34px;
+            height: 34px;
+            max-width: 34px;
+            max-height: 34px;
+            object-fit: contain;
+            object-position: center;
+            border-radius: 10px;
         }
         .sidebar-collapsed .sidebar > h4 span {
             display: none;
-        }
-
-        .sidebar-collapsed main {
-            margin-left: var(--aa-sidebar-collapsed-width);
-            width: calc(100% - var(--aa-sidebar-collapsed-width));
         }
         .sidebar-open-button {
             position: fixed;
@@ -223,10 +230,10 @@
                 box-shadow: 12px 0 30px rgba(15,23,42,.18);
             }
             .sidebar.mobile-open { transform: translateX(0); }
-            main, .sidebar-collapsed main { margin-left: 0; width: 100%; padding: 22px 16px !important; }
+            main { margin-left: 0; width: 100%; padding: 22px 16px !important; }
             .sidebar-toggle { right: 12px; }
             .sidebar-collapsed .sidebar { width: min(300px, 86vw); }
-            .sidebar-collapsed .sidebar > h4 { font-size: 18px; padding: 4px 42px 24px 10px; }
+            .sidebar-collapsed .sidebar > h4 { font-size: 18px; padding: 4px 42px 12px 10px; }
             .sidebar-collapsed .sidebar nav a,
             .sidebar-collapsed .sidebar nav .nav-link { justify-content: flex-start; padding: 10px 12px !important; font-size: 14px; }
             .sidebar-collapsed .sidebar nav a::before,
@@ -237,9 +244,20 @@
             .sidebar-open-button { display: grid; }
             .sidebar-collapsed .sidebar-open-button { display: grid; }
         }
+        .sidebar-logo {
+            display: block;
+            flex: 0 0 34px;
+            width: 34px;
+            height: 34px;
+            max-width: 34px;
+            max-height: 34px;
+            object-fit: contain;
+            object-position: center;
+            border-radius: 10px;
+        }
         @media (max-width: 575.98px) {
             .sidebar nav { display: grid !important; grid-template-columns: 1fr; }
-            main, .sidebar-collapsed main { padding: 18px 12px !important; }
+            main { padding: 18px 12px !important; }
         }
     </style>
     {% block extra_head %}{% endblock %}
@@ -250,7 +268,7 @@
         {% if user.is_authenticated %}
         <aside class="sidebar d-flex flex-column" id="aa-sidebar">
             <h4 class="fw-bold text-white"><img class="sidebar-logo" src="{% static 'audio_analytics/images/audoack-logo.png' %}" alt="AudoAck AI logo"><span>AudoAck AI</span></h4>
-            <button type="button" class="sidebar-toggle" id="aa-sidebar-toggle" aria-label="Collapse sidebar" aria-expanded="true">‹</button>
+            <button type="button" class="sidebar-toggle" id="aa-sidebar-toggle" aria-label="Collapse sidebar" aria-expanded="true">â€¹</button>
             <nav class="nav flex-column">
                 <a href="{% url 'dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Dashboard</a>
                 <a href="{% url 'batch_list' %}" class="{% if request.resolver_match.url_name == 'batch_list' %}active{% endif %}">Batch Processing</a>
@@ -269,7 +287,7 @@
                 </form>
             </div>
         </aside>
-        <button type="button" class="sidebar-open-button" id="aa-sidebar-open" aria-label="Open sidebar">☰</button>
+        <button type="button" class="sidebar-open-button" id="aa-sidebar-open" aria-label="Open sidebar">â˜°</button>
         {% endif %}
         <main>
             {% block content %}{% endblock %}
